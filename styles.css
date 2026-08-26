@@ -69,6 +69,10 @@ h3 { margin: 0; font-size: 21px; }
 .kids-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .kid-card { position: relative; padding: 15px; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: 0 6px 24px rgba(23,49,45,.045); transition: transform .2s ease, box-shadow .2s ease; }
 .kid-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.kid-card.dragging { z-index: 5; opacity: .7; transform: scale(.98); box-shadow: var(--shadow); }
+.kid-card.drop-before::before, .kid-card.drop-after::before { content: ""; position: absolute; z-index: 6; left: 8px; right: 8px; height: 4px; border-radius: 999px; background: var(--green); }
+.kid-card.drop-before::before { top: 0; }
+.kid-card.drop-after::before { bottom: 0; }
 .kid-card::after { content: ""; position: absolute; width: 80px; height: 80px; right: -28px; top: -28px; border-radius: 50%; background: var(--card-accent, var(--mint)); opacity: .55; }
 .kid-card-open { position: relative; z-index: 1; width: 100%; padding: 0; border-radius: 12px; background: transparent; color: inherit; text-align: left; box-shadow: none; }
 .kid-card-open:hover { transform: none; }
@@ -80,7 +84,7 @@ h3 { margin: 0; font-size: 21px; }
 .kid-name { overflow: hidden; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
 .kid-total-label { margin: 5px 0 2px; color: var(--muted); font-size: 13px; }
 .kid-total { font-family: Manrope, sans-serif; font-size: 27px; letter-spacing: -.04em; }
-.arrow { position: relative; z-index: 1; color: var(--green); font-size: 22px; }
+.arrow { position: relative; z-index: 1; margin-right: 34px; color: var(--green); font-size: 22px; }
 .balances { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 12px; }
 .balance { min-width: 0; padding: 9px 8px; border-radius: 10px; background: #f7f8f5; }
 .balance span { display: block; margin-bottom: 3px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
@@ -89,6 +93,10 @@ h3 { margin: 0; font-size: 21px; }
 .card-action { position: relative; z-index: 1; padding: 9px 6px; font-size: 11px; white-space: nowrap; }
 .card-action.spend { background: var(--green); color: white; }
 .card-action.weekly { background: var(--yellow); color: #664d08; }
+.drag-handle { position: absolute; z-index: 3; top: 9px; right: 9px; display: grid; place-items: center; width: 32px; height: 34px; padding: 0; border: 1px solid rgba(23,49,45,.08); border-radius: 10px; background: rgba(255,255,255,.8); color: var(--muted); font-size: 20px; line-height: 1; cursor: grab; touch-action: none; user-select: none; }
+.drag-handle:hover { transform: none; background: white; color: var(--green); }
+.drag-handle.dragging { cursor: grabbing; }
+.is-sorting { user-select: none; }
 .empty-state { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 28px; padding: 34px; border: 2px dashed var(--mint-deep); border-radius: 24px; background: rgba(255,255,255,.52); }
 .empty-state p { margin: 8px 0 0; color: var(--muted); line-height: 1.55; }
 .empty-icon { display: grid; place-items: center; width: 78px; height: 78px; border-radius: 24px; background: var(--yellow); font-size: 36px; }
@@ -173,7 +181,7 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .section-heading .eyebrow { display: none; }
   .section-heading h2 { font-size: 22px; }
   .kids-grid { grid-template-columns: 1fr; gap: 6px; }
-  .kid-card { display: grid; grid-template-columns: minmax(0, 1fr) 62px; align-items: center; gap: 6px; padding: 8px 9px; border-radius: 14px; }
+  .kid-card { display: grid; grid-template-columns: minmax(0, 1fr) 62px 27px; align-items: center; gap: 6px; padding: 8px 8px; border-radius: 14px; }
   .kid-card-open { display: grid; grid-template-columns: minmax(0, 1fr) 136px; align-items: center; gap: 6px; }
   .kid-card::after { width: 58px; height: 58px; right: -20px; top: -20px; }
   .kid-top { gap: 6px; }
@@ -188,6 +196,7 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .balance strong { font-size: 13px; }
   .card-actions { grid-template-columns: 1fr; gap: 4px; margin-top: 0; }
   .card-action { padding: 6px 2px; font-size: 9px; }
+  .drag-handle { position: relative; top: auto; right: auto; grid-column: 3; grid-row: 1; width: 27px; height: 42px; border: 0; background: transparent; font-size: 19px; }
   .detail-hero { grid-template-columns: 1fr; padding: 25px; }
   .detail-actions { justify-content: flex-start; }
   .detail-balances { grid-template-columns: 1fr; }

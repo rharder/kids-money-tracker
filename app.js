@@ -8,6 +8,7 @@ const accents = ["#dff4e8", "#ddecff", "#ffe4dc", "#fff0bd", "#eadffc", "#d9f1ef
 let state = loadState();
 let selectedKidId = null;
 let toastTimer;
+let dragState = null;
 
 const homeView = document.getElementById("homeView");
 const detailView = document.getElementById("detailView");
@@ -108,7 +109,7 @@ function renderHome() {
   }
 
   kidsGrid.innerHTML = state.kids.map((kid, index) => `
-    <article class="kid-card" style="--card-accent:${accents[index % accents.length]}">
+    <article class="kid-card" data-kid-id="${attr(kid.id)}" style="--card-accent:${accents[index % accents.length]}">
       <button class="kid-card-open" type="button" data-open-kid="${attr(kid.id)}" aria-label="View ${attr(kid.name)} details and Very Long Term savings">
         <div class="kid-top">
           <div class="kid-identity">
@@ -125,7 +126,77 @@ function renderHome() {
         <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}" aria-label="Record spending for ${attr(kid.name)}">− Spend</button>
         <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}" aria-label="Add weekly pay for ${attr(kid.name)}">＋ Pay</button>
       </div>
+      <button class="drag-handle" type="button" data-reorder-kid="${attr(kid.id)}" aria-label="Reorder ${attr(kid.name)}. Drag, or use arrow keys to move." title="Drag to reorder"><span aria-hidden="true">⠿</span></button>
     </article>`).join("");
+}
+
+function orderedKidIds() {
+  return [...kidsGrid.querySelectorAll(".kid-card")].map((card) => card.dataset.kidId);
+}
+
+function saveKidOrder(ids, message = "Order updated") {
+  const kidsById = new Map(state.kids.map((kid) => [kid.id, kid]));
+  state.kids = ids.map((id) => kidsById.get(id)).filter(Boolean);
+  persist(message);
+}
+
+function moveKidWithKeyboard(id, direction) {
+  const ids = state.kids.map((kid) => kid.id);
+  const fromIndex = ids.indexOf(id);
+  const toIndex = Math.max(0, Math.min(ids.length - 1, fromIndex + direction));
+  if (fromIndex < 0 || fromIndex === toIndex) return;
+  ids.splice(toIndex, 0, ids.splice(fromIndex, 1)[0]);
+  const kidName = state.kids.find((kid) => kid.id === id)?.name || "Child";
+  saveKidOrder(ids, `${kidName} moved ${direction < 0 ? "up" : "down"}`);
+  requestAnimationFrame(() => kidsGrid.querySelector(`[data-reorder-kid="${CSS.escape(id)}"]`)?.focus());
+}
+
+function startKidDrag(event, handle) {
+  if (event.button !== undefined && event.button !== 0) return;
+  const card = handle.closest(".kid-card");
+  if (!card) return;
+  event.preventDefault();
+  dragState = { card, handle, pointerId: event.pointerId, originalIds: orderedKidIds(), moved: false };
+  handle.setPointerCapture?.(event.pointerId);
+  handle.classList.add("dragging");
+  card.classList.add("dragging");
+  kidsGrid.classList.add("is-sorting");
+}
+
+function moveKidDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  event.preventDefault();
+  const target = document.elementsFromPoint(event.clientX, event.clientY).map((element) => element.closest?.(".kid-card")).find((card) => card && card !== dragState.card);
+  kidsGrid.querySelectorAll(".drop-before, .drop-after").forEach((card) => card.classList.remove("drop-before", "drop-after"));
+  if (!target) return;
+
+  const rect = target.getBoundingClientRect();
+  const singleColumn = getComputedStyle(kidsGrid).gridTemplateColumns.split(" ").length === 1;
+  const before = singleColumn
+    ? event.clientY < rect.top + rect.height / 2
+    : event.clientY < rect.top + rect.height * .25 || (event.clientY <= rect.bottom - rect.height * .25 && event.clientX < rect.left + rect.width / 2);
+
+  target.classList.add(before ? "drop-before" : "drop-after");
+  target[before ? "before" : "after"](dragState.card);
+  dragState.moved = true;
+
+  const edge = 70;
+  if (event.clientY < edge) window.scrollBy({ top: -10 });
+  if (event.clientY > window.innerHeight - edge) window.scrollBy({ top: 10 });
+}
+
+function finishKidDrag(event, cancelled = false) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  const { card, handle, pointerId, originalIds, moved } = dragState;
+  handle.releasePointerCapture?.(pointerId);
+  handle.classList.remove("dragging");
+  card.classList.remove("dragging");
+  kidsGrid.classList.remove("is-sorting");
+  kidsGrid.querySelectorAll(".drop-before, .drop-after").forEach((item) => item.classList.remove("drop-before", "drop-after"));
+  dragState = null;
+  if (cancelled) return renderHome();
+  const ids = orderedKidIds();
+  if (moved && ids.some((id, index) => id !== originalIds[index])) saveKidOrder(ids);
 }
 
 function renderDetail() {
@@ -311,6 +382,26 @@ document.addEventListener("click", (event) => {
     }
   };
   actions[action]?.();
+});
+
+document.addEventListener("pointerdown", (event) => {
+  const handle = event.target.closest("[data-reorder-kid]");
+  if (handle) startKidDrag(event, handle);
+});
+document.addEventListener("pointermove", moveKidDrag, { passive: false });
+document.addEventListener("pointerup", (event) => finishKidDrag(event));
+document.addEventListener("pointercancel", (event) => finishKidDrag(event, true));
+document.addEventListener("keydown", (event) => {
+  const handle = event.target.closest("[data-reorder-kid]");
+  if (!handle) return;
+  if (["ArrowUp", "ArrowLeft"].includes(event.key)) {
+    event.preventDefault();
+    moveKidWithKeyboard(handle.dataset.reorderKid, -1);
+  }
+  if (["ArrowDown", "ArrowRight"].includes(event.key)) {
+    event.preventDefault();
+    moveKidWithKeyboard(handle.dataset.reorderKid, 1);
+  }
 });
 
 document.addEventListener("submit", (event) => {
