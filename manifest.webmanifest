@@ -1,7 +1,7 @@
 {
   "name": "Family Money Tracker",
   "short_name": "Family Money",
-  "description": "Help kids split, save, and spend their money with confidence.",
+  "description": "See everyday balances, record spending, and divide weekly pay in a tap.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -1,7 +1,8 @@
-const STORAGE_KEY = "familyMoneyTracker.v2";
-const LEGACY_KEY = "familyMoneyTracker.v1";
-const categories = ["Pocket", "Short Term", "Long Term"];
-const categoryIcons = { Pocket: "◉", "Short Term": "↗", "Long Term": "◆" };
+const STORAGE_KEY = "familyMoneyTracker.v3";
+const PREVIOUS_KEYS = ["familyMoneyTracker.v2", "familyMoneyTracker.v1"];
+const categories = ["Short Term", "Long Term", "Very Long Term"];
+const activeCategories = ["Short Term", "Long Term"];
+const categoryIcons = { "Short Term": "↗", "Long Term": "◆", "Very Long Term": "⌁" };
 const accents = ["#dff4e8", "#ddecff", "#ffe4dc", "#fff0bd", "#eadffc", "#d9f1ef"];
 
 let state = loadState();
@@ -17,16 +18,35 @@ const restoreInput = document.getElementById("restoreInput");
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
-    const parsed = raw ? JSON.parse(raw) : { kids: [], transactions: [] };
+    const current = localStorage.getItem(STORAGE_KEY);
+    if (current) {
+      const parsed = JSON.parse(current);
+      if (!Array.isArray(parsed.kids) || !Array.isArray(parsed.transactions)) throw new Error("Invalid data");
+      parsed.schemaVersion = 3;
+      return parsed;
+    }
+    const legacyRaw = PREVIOUS_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
+    const parsed = legacyRaw ? JSON.parse(legacyRaw) : { schemaVersion: 3, kids: [], transactions: [] };
     if (!Array.isArray(parsed.kids) || !Array.isArray(parsed.transactions)) throw new Error("Invalid data");
+    if (legacyRaw) {
+      migrateLegacyState(parsed);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    }
     return parsed;
   } catch {
-    return { kids: [], transactions: [] };
+    return { schemaVersion: 3, kids: [], transactions: [] };
   }
 }
 
+function migrateLegacyState(data) {
+  const categoryMigration = { Pocket: "Short Term", "Short Term": "Long Term", "Long Term": "Very Long Term" };
+  data.transactions = data.transactions.map((transaction) => ({ ...transaction, category: categoryMigration[transaction.category] || transaction.category }));
+  data.schemaVersion = 3;
+  return data;
+}
+
 function persist(message) {
+  state.schemaVersion = 3;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
   if (message) showToast(message);
@@ -43,7 +63,7 @@ function balance(kidId, category) {
 }
 
 function kidTotal(kidId) {
-  return categories.reduce((total, category) => total + balance(kidId, category), 0);
+  return activeCategories.reduce((total, category) => total + balance(kidId, category), 0);
 }
 
 function initials(name) {
@@ -79,7 +99,7 @@ function renderHome() {
       <div class="empty-state">
         <div>
           <h3>Ready for the first money lesson?</h3>
-          <p>Add a child, record a job payment, and we’ll divide it into five equal shares.</p>
+          <p>Add a child, see their everyday money, and divide weekly pay into five equal shares.</p>
           <button class="primary" type="button" data-action="add-kid" style="margin-top:18px">Add your first child</button>
         </div>
         <div class="empty-icon" aria-hidden="true">✦</div>
@@ -88,16 +108,23 @@ function renderHome() {
   }
 
   kidsGrid.innerHTML = state.kids.map((kid, index) => `
-    <article class="kid-card" role="button" tabindex="0" data-kid-id="${attr(kid.id)}" style="--card-accent:${accents[index % accents.length]}">
-      <div class="kid-top">
-        <div class="avatar">${escapeHtml(initials(kid.name))}</div>
-        <span class="arrow" aria-hidden="true">→</span>
-      </div>
-      <h3 class="kid-name">${escapeHtml(kid.name)}</h3>
-      <p class="kid-total-label">Total balance</p>
-      <div class="kid-total">${money(kidTotal(kid.id))}</div>
-      <div class="balances">
-        ${categories.map((category) => `<div class="balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
+    <article class="kid-card" style="--card-accent:${accents[index % accents.length]}">
+      <button class="kid-card-open" type="button" data-open-kid="${attr(kid.id)}" aria-label="View ${attr(kid.name)} details and Very Long Term savings">
+        <div class="kid-top">
+          <div class="avatar">${escapeHtml(initials(kid.name))}</div>
+          <span class="arrow" aria-hidden="true">→</span>
+        </div>
+        <h3 class="kid-name">${escapeHtml(kid.name)}</h3>
+        <p class="kid-total-label">Short + Long Term</p>
+        <div class="kid-total">${money(kidTotal(kid.id))}</div>
+        <div class="balances">
+          ${activeCategories.map((category) => `<div class="balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
+        </div>
+        <span class="details-hint">Details + Very Long Term</span>
+      </button>
+      <div class="card-actions">
+        <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}">− Record spending</button>
+        <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}">＋ Weekly pay</button>
       </div>
     </article>`).join("");
 }
@@ -120,13 +147,18 @@ function renderDetail() {
         <button class="danger" type="button" data-action="delete-kid">Delete</button>
       </div>
       <div class="detail-balances">
-        ${categories.map((category) => `<div class="detail-balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
+        ${activeCategories.map((category) => `<div class="detail-balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
       </div>
     </div>
     <div class="quick-actions">
-      <button class="quick-action primary" type="button" data-action="pay"><span>Record job pay<small>Split into five equal shares</small></span><span class="quick-action-icon">＋</span></button>
-      <button class="quick-action secondary" type="button" data-action="adjust"><span>Spend or adjust<small>Update one money bucket</small></span><span class="quick-action-icon">↗</span></button>
+      <button class="quick-action primary" type="button" data-action="adjust"><span>Record spending<small>Short Term or Long Term</small></span><span class="quick-action-icon">−</span></button>
+      <button class="quick-action secondary" type="button" data-action="pay"><span>Add weekly pay<small>Divide into five equal shares</small></span><span class="quick-action-icon">＋</span></button>
     </div>
+    <section class="vault-card" aria-labelledby="vaultTitle">
+      <div class="vault-icon" aria-hidden="true">⌁</div>
+      <div class="vault-copy"><p class="eyebrow">Quiet savings</p><h2 id="vaultTitle">Very Long Term</h2><p>This money only grows. It stays tucked away until around age 18.</p></div>
+      <strong>${money(balance(kid.id, "Very Long Term"))}</strong>
+    </section>
     <div class="history-card">
       <div class="history-head"><div><h2>Activity</h2><p>${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}</p></div><button class="secondary" type="button" data-action="backup">Backup</button></div>
       <div>
@@ -135,7 +167,7 @@ function renderDetail() {
             <div class="tx-icon" aria-hidden="true">${categoryIcons[transaction.category] || "•"}</div>
             <div class="tx-copy"><strong>${escapeHtml(transaction.note || transaction.category)}</strong><small>${escapeHtml(transaction.category)} · ${new Date(transaction.time).toLocaleString()}</small></div>
             <div class="tx-amount ${transaction.amount >= 0 ? "plus" : "minus"}">${transaction.amount >= 0 ? "+" : "−"}${money(Math.abs(transaction.amount))}</div>
-          </div>`).join("") : `<div class="empty-history">No activity yet. Record a job payment to get started.</div>`}
+          </div>`).join("") : `<div class="empty-history">No activity yet. Add weekly pay to get started.</div>`}
       </div>
     </div>`;
 }
@@ -180,7 +212,7 @@ function openRename() {
 }
 
 function openPay() {
-  openModal(`${closeButton()}<h2 id="modalTitle">Record job pay</h2><p class="modal-copy">The full amount is divided into five equal shares. Pocket, Short Term, and Long Term are tracked here.</p><form id="payForm"><label for="payAmount">Total pay</label><input id="payAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="25.00" required><div id="splitPreview" class="split-preview" hidden></div><label for="payNote">What was the job? <span style="font-weight:400">(optional)</span></label><input id="payNote" name="note" maxlength="80" placeholder="Mowed the lawn"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Divide & pay</button></div></form>`);
+  openModal(`${closeButton()}<h2 id="modalTitle">Add weekly pay</h2><p class="modal-copy">The total is divided into five equal shares. Pocket and Tithe stay untracked; the three savings shares are added here.</p><form id="payForm"><label for="payAmount">Total earned</label><input id="payAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="25.00" required><div id="splitPreview" class="split-preview" hidden></div><label for="payNote">Note <span style="font-weight:400">(optional)</span></label><input id="payNote" name="note" maxlength="80" placeholder="Weekly jobs"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Divide & add</button></div></form>`);
 }
 
 function updateSplitPreview(input) {
@@ -189,7 +221,7 @@ function updateSplitPreview(input) {
   if (!cents || cents < 1) return preview.hidden = true;
   const shares = splitCents(cents);
   preview.hidden = false;
-  preview.innerHTML = categories.map((category, index) => `<div><span>${escapeHtml(category)}</span><strong>${money(shares[index] / 100)}</strong></div>`).join("");
+  preview.innerHTML = categories.map((category, index) => `<div><span>${escapeHtml(category)}</span><strong>${money(shares[index + 2] / 100)}</strong></div>`).join("");
 }
 
 function splitCents(totalCents) {
@@ -200,7 +232,7 @@ function splitCents(totalCents) {
 }
 
 function openAdjust() {
-  openModal(`${closeButton()}<h2 id="modalTitle">Spend or adjust</h2><p class="modal-copy">Choose one bucket to update.</p><form id="adjustForm"><label for="adjustCategory">Money bucket</label><select id="adjustCategory" name="category">${categories.map((category) => `<option>${escapeHtml(category)}</option>`).join("")}</select><label for="adjustAmount">Amount</label><input id="adjustAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="5.00" required><label for="adjustType">Type</label><select id="adjustType" name="type"><option value="-1">Spend / subtract</option><option value="1">Add money</option></select><label for="adjustNote">Note <span style="font-weight:400">(optional)</span></label><input id="adjustNote" name="note" maxlength="80" placeholder="Bought a book"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Save transaction</button></div></form>`);
+  openModal(`${closeButton()}<h2 id="modalTitle">Record spending</h2><p class="modal-copy">Update Short Term or Long Term money.</p><form id="adjustForm"><label for="adjustCategory">Money bucket</label><select id="adjustCategory" name="category">${activeCategories.map((category) => `<option>${escapeHtml(category)}</option>`).join("")}</select><label for="adjustAmount">Amount</label><input id="adjustAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="5.00" required><label for="adjustType">Type</label><select id="adjustType" name="type"><option value="-1">Spend / subtract</option><option value="1">Add money</option></select><label for="adjustNote">Note <span style="font-weight:400">(optional)</span></label><input id="adjustNote" name="note" maxlength="80" placeholder="Bought a book"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Save transaction</button></div></form>`);
 }
 
 function openBackup() {
@@ -226,10 +258,11 @@ function exportData() {
 
 async function restoreData(file) {
   try {
-    const restored = JSON.parse(await file.text());
+    let restored = JSON.parse(await file.text());
     if (!Array.isArray(restored.kids) || !Array.isArray(restored.transactions)) throw new Error("Invalid backup");
+    if (restored.schemaVersion !== 3) restored = migrateLegacyState(restored);
     const validCategories = new Set(categories);
-    if (restored.kids.some((kid) => !kid.id || typeof kid.name !== "string") || restored.transactions.some((tx) => !tx.id || !tx.kidId || !validCategories.has(tx.category) || !Number.isFinite(Number(tx.amount)) || !Number.isFinite(Number(tx.time)))) throw new Error("Invalid backup");
+    if (restored.kids.some((kid) => !kid.id || typeof kid.name !== "string") || restored.transactions.some((tx) => !tx.id || !tx.kidId || !validCategories.has(tx.category) || !Number.isFinite(Number(tx.amount)) || !Number.isFinite(Number(tx.time)) || (tx.category === "Very Long Term" && Number(tx.amount) < 0))) throw new Error("Invalid backup");
     state = restored;
     selectedKidId = null;
     closeModal();
@@ -251,16 +284,21 @@ function showToast(message) {
 }
 
 document.addEventListener("click", (event) => {
-  const kidCard = event.target.closest("[data-kid-id]");
-  if (kidCard) return openKid(kidCard.dataset.kidId);
-  const action = event.target.closest("[data-action]")?.dataset.action;
-  if (!action) return;
+  const actionTarget = event.target.closest("[data-action]");
+  const action = actionTarget?.dataset.action;
+  if (!action) {
+    const kidOpen = event.target.closest("[data-open-kid]");
+    if (kidOpen) return openKid(kidOpen.dataset.openKid);
+    return;
+  }
   const actions = {
     "add-kid": openAddKid,
     close: closeModal,
     rename: openRename,
     pay: openPay,
     adjust: openAdjust,
+    "quick-spend": () => { selectedKidId = actionTarget.dataset.targetKid; openAdjust(); },
+    "quick-pay": () => { selectedKidId = actionTarget.dataset.targetKid; openPay(); },
     backup: openBackup,
     download: exportData,
     restore: () => restoreInput.click(),
@@ -274,13 +312,6 @@ document.addEventListener("click", (event) => {
     }
   };
   actions[action]?.();
-});
-
-document.addEventListener("keydown", (event) => {
-  if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-kid-id]")) {
-    event.preventDefault();
-    openKid(event.target.dataset.kidId);
-  }
 });
 
 document.addEventListener("submit", (event) => {
@@ -301,10 +332,10 @@ document.addEventListener("submit", (event) => {
     const totalCents = Math.round(Number(values.get("amount")) * 100);
     if (totalCents < 1) return;
     const shares = splitCents(totalCents);
-    const note = values.get("note").trim() || `Job pay (${money(totalCents / 100)} total)`;
-    categories.forEach((category, index) => state.transactions.push({ id: uniqueId(), kidId: selectedKidId, category, amount: shares[index] / 100, note, time: Date.now() + index }));
+    const note = values.get("note").trim() || `Weekly pay (${money(totalCents / 100)} total)`;
+    categories.forEach((category, index) => state.transactions.push({ id: uniqueId(), kidId: selectedKidId, category, amount: shares[index + 2] / 100, note, time: Date.now() + index }));
     closeModal();
-    persist("Job pay divided and added");
+    persist("Weekly pay divided and added");
   }
   if (form.id === "adjustForm") {
     const amount = Math.round(Number(values.get("amount")) * 100) / 100;
