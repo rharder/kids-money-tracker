@@ -122,8 +122,8 @@ function renderHome() {
         </div>
       </button>
       <div class="card-actions">
-        <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}">− Record spending</button>
-        <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}">＋ Weekly pay</button>
+        <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}" aria-label="Record spending for ${attr(kid.name)}">− Spend</button>
+        <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}" aria-label="Add weekly pay for ${attr(kid.name)}">＋ Pay</button>
       </div>
     </article>`).join("");
 }
