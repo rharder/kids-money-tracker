@@ -231,6 +231,7 @@ function finishKidDrag(event, cancelled = false) {
 function renderDetail() {
   const kid = state.kids.find((item) => item.id === selectedKidId);
   if (!kid) return showHome();
+  const vltBalance = balance(kid.id, "Very Long Term");
   const transactions = state.transactions
     .filter((transaction) => transaction.kidId === kid.id)
     .sort((a, b) => b.time - a.time);
@@ -255,8 +256,8 @@ function renderDetail() {
     </div>
     <section class="vault-card" aria-labelledby="vaultTitle">
       <div class="vault-icon" aria-hidden="true">⌁</div>
-      <div class="vault-copy"><p class="eyebrow">Quiet savings</p><h2 id="vaultTitle">Very Long Term</h2><p>This money only grows. It stays tucked away until around age 18.</p></div>
-      <strong>${money(balance(kid.id, "Very Long Term"))}</strong>
+      <div class="vault-copy"><p class="eyebrow">Quiet savings</p><h2 id="vaultTitle">Very Long Term</h2><p>Amount still held in your checking account for their future.</p></div>
+      <div class="vault-actions"><strong>${money(vltBalance)}</strong><button class="secondary" type="button" data-action="transfer-vlt"${vltBalance <= 0 ? " disabled" : ""}>Mark transferred</button></div>
     </section>
     <div class="history-card">
       <div class="history-head"><div><h2>Activity</h2><p>${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}</p></div><button class="secondary" type="button" data-action="backup">Backup</button></div>
@@ -345,6 +346,13 @@ function deleteKid() {
   openModal(`${closeButton()}<h2 id="modalTitle">Delete ${escapeHtml(kid.name)}?</h2><p class="modal-copy">This permanently removes their balances and transaction history from this device. Download a backup first if you may need it later.</p><div class="modal-actions"><button class="secondary" type="button" data-action="close">Keep child</button><button class="danger" type="button" data-action="confirm-delete">Delete everything</button></div>`);
 }
 
+function openVltTransfer() {
+  const kid = state.kids.find((item) => item.id === selectedKidId);
+  const amount = kid ? balance(kid.id, "Very Long Term") : 0;
+  if (!kid || amount <= 0) return showToast("There is no VLT balance to transfer");
+  openModal(`${closeButton()}<h2 id="modalTitle">Mark ${money(amount)} transferred?</h2><p class="modal-copy">Use this after moving the money from your checking account into ${escapeHtml(kid.name)}’s savings account. Their VLT balance here will become $0, and the transfer will remain in Activity.</p><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="button" data-action="confirm-vlt-transfer">Set VLT to $0</button></div>`);
+}
+
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -363,7 +371,7 @@ async function restoreData(file) {
     if (!Array.isArray(restored.kids) || !Array.isArray(restored.transactions)) throw new Error("Invalid backup");
     if (restored.schemaVersion !== 3) restored = migrateLegacyState(restored);
     const validCategories = new Set(categories);
-    if (restored.kids.some((kid) => !kid.id || typeof kid.name !== "string") || restored.transactions.some((tx) => !tx.id || !tx.kidId || !validCategories.has(tx.category) || !Number.isFinite(Number(tx.amount)) || !Number.isFinite(Number(tx.time)) || (tx.category === "Very Long Term" && Number(tx.amount) < 0 && tx.kind !== "balance-set"))) throw new Error("Invalid backup");
+    if (restored.kids.some((kid) => !kid.id || typeof kid.name !== "string") || restored.transactions.some((tx) => !tx.id || !tx.kidId || !validCategories.has(tx.category) || !Number.isFinite(Number(tx.amount)) || !Number.isFinite(Number(tx.time)) || (tx.category === "Very Long Term" && Number(tx.amount) < 0 && !["balance-set", "vlt-transfer"].includes(tx.kind)))) throw new Error("Invalid backup");
     state = restored;
     selectedKidId = null;
     closeModal();
@@ -404,6 +412,14 @@ document.addEventListener("click", (event) => {
     download: exportData,
     restore: () => restoreInput.click(),
     "balance-cancel": showHome,
+    "transfer-vlt": openVltTransfer,
+    "confirm-vlt-transfer": () => {
+      const amount = balance(selectedKidId, "Very Long Term");
+      if (amount <= 0) return closeModal();
+      state.transactions.push({ id: uniqueId(), kidId: selectedKidId, category: "Very Long Term", amount: -amount, kind: "vlt-transfer", note: "Moved to savings account", time: Date.now() });
+      closeModal();
+      persist("VLT transfer recorded");
+    },
     "delete-kid": deleteKid,
     "confirm-delete": () => {
       state.kids = state.kids.filter((kid) => kid.id !== selectedKidId);
