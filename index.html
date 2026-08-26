@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fffaf0">
+  <meta name="description" content="A simple family money tracker for pocket, short-term, and long-term savings.">
+  <meta property="og:title" content="Family Money Tracker">
+  <meta property="og:description" content="Help kids split, save, and spend their money with confidence.">
+  <title>Family Money Tracker</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="Family Money home">
+        <span class="brand-mark" aria-hidden="true">$</span>
+        <span>Family Money</span>
+      </a>
+      <div class="header-actions">
+        <button class="icon-button" id="backupButton" type="button" aria-label="Backup and restore data" title="Backup and restore">
+          <span aria-hidden="true">↗</span>
+        </button>
+        <button class="primary compact" id="addKidButton" type="button"><span aria-hidden="true">＋</span> Add child</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="homeView" aria-labelledby="homeTitle">
+        <div class="hero">
+          <div>
+            <p class="eyebrow">Their money, made simple</p>
+            <h1 id="homeTitle">Small jobs. Big lessons.</h1>
+            <p class="hero-copy">Help your kids see where every dollar goes—and watch good money habits grow.</p>
+          </div>
+          <div class="hero-coin" aria-hidden="true">
+            <span>$</span>
+            <i class="spark one"></i><i class="spark two"></i><i class="spark three"></i>
+          </div>
+        </div>
+
+        <div class="summary-strip" id="familySummary" hidden>
+          <div><span>Family total</span><strong id="familyTotal">$0.00</strong></div>
+          <div class="summary-divider"></div>
+          <div><span>Kids learning</span><strong id="kidCount">0</strong></div>
+          <div class="summary-divider"></div>
+          <div><span>Transactions</span><strong id="transactionCount">0</strong></div>
+        </div>
+
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Your family</p>
+            <h2>Money at a glance</h2>
+          </div>
+        </div>
+        <div id="kidsGrid" class="kids-grid"></div>
+      </section>
+
+      <section id="detailView" class="hidden" aria-labelledby="detailName">
+        <button class="text-button back-button" id="backButton" type="button">← All kids</button>
+        <div id="kidDetail"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Saved privately on this device</span>
+      <span class="footer-dot" aria-hidden="true"></span>
+      <button class="footer-button" id="footerBackupButton" type="button">Backup data</button>
+    </footer>
+  </div>
+
+  <dialog id="modal" aria-labelledby="modalTitle">
+    <div id="modalBody"></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <input id="restoreInput" type="file" accept="application/json,.json" hidden>
+
+  <script src="app.js"></script>
+</body>
+</html>

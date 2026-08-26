@@ -1,0 +1,13 @@
+{
+  "name": "Family Money Tracker",
+  "short_name": "Family Money",
+  "description": "Help kids split, save, and spend their money with confidence.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fffaf0",
+  "theme_color": "#fffaf0",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
