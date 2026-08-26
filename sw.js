@@ -1,4 +1,4 @@
-const CACHE = "family-money-v10";
+const CACHE = "family-money-v11";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

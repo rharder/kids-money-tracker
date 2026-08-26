@@ -7,6 +7,7 @@ const accents = ["#dff4e8", "#ddecff", "#ffe4dc", "#fff0bd", "#eadffc", "#d9f1ef
 
 let state = loadState();
 let selectedKidId = null;
+let selectedTransactionId = null;
 let toastTimer;
 let dragState = null;
 
@@ -263,10 +264,11 @@ function renderDetail() {
       <div class="history-head"><div><h2>Activity</h2><p>${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}</p></div><button class="secondary" type="button" data-action="backup">Backup</button></div>
       <div>
         ${transactions.length ? transactions.map((transaction) => `
-          <div class="transaction">
+          <div class="transaction" data-transaction-id="${attr(transaction.id)}">
             <div class="tx-icon" aria-hidden="true">${categoryIcons[transaction.category] || "•"}</div>
             <div class="tx-copy"><strong>${escapeHtml(transaction.note || transaction.category)}</strong><small>${escapeHtml(transaction.category)} · ${new Date(transaction.time).toLocaleString()}</small></div>
             <div class="tx-amount ${transaction.amount >= 0 ? "plus" : "minus"}">${transaction.amount >= 0 ? "+" : "−"}${money(Math.abs(transaction.amount))}</div>
+            <div class="tx-actions"><button class="tx-action" type="button" data-action="edit-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Edit ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">✎</span><span class="tx-action-label">Edit</span></button><button class="tx-action delete" type="button" data-action="delete-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Delete ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">×</span><span class="tx-action-label">Delete</span></button></div>
           </div>`).join("") : `<div class="empty-history">No activity yet. Add weekly pay to get started.</div>`}
       </div>
     </div>`;
@@ -353,6 +355,21 @@ function openVltTransfer() {
   openModal(`${closeButton()}<h2 id="modalTitle">Mark ${money(amount)} transferred?</h2><p class="modal-copy">Use this after moving the money from your checking account into ${escapeHtml(kid.name)}’s savings account. Their VLT balance here will become $0, and the transfer will remain in Activity.</p><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="button" data-action="confirm-vlt-transfer">Set VLT to $0</button></div>`);
 }
 
+function openEditTransaction(id) {
+  const transaction = state.transactions.find((item) => item.id === id && item.kidId === selectedKidId);
+  if (!transaction) return showToast("That activity entry is no longer available");
+  selectedTransactionId = id;
+  openModal(`${closeButton()}<h2 id="modalTitle">Edit activity</h2><p class="modal-copy">The original date and time will stay the same.</p><form id="editTransactionForm"><fieldset class="choice-field"><legend>Money bucket</legend><div class="segmented three">${categories.map((category) => `<label><input type="radio" name="category" value="${escapeHtml(category)}"${transaction.category === category ? " checked" : ""}><span>${escapeHtml(category)}</span></label>`).join("")}</div></fieldset><label for="editTransactionAmount">Amount</label><input id="editTransactionAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" value="${Math.abs(Number(transaction.amount)).toFixed(2)}" required><fieldset class="choice-field"><legend>Type</legend><div class="segmented"><label><input type="radio" name="type" value="-1"${transaction.amount < 0 ? " checked" : ""}><span>Subtract</span></label><label><input type="radio" name="type" value="1"${transaction.amount >= 0 ? " checked" : ""}><span>Add money</span></label></div></fieldset><label for="editTransactionNote">Note <span style="font-weight:400">(optional)</span></label><input id="editTransactionNote" name="note" maxlength="80" value="${attr(transaction.note || "")}" placeholder="What was this for?"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Save changes</button></div></form>`);
+}
+
+function openDeleteTransaction(id) {
+  const transaction = state.transactions.find((item) => item.id === id && item.kidId === selectedKidId);
+  if (!transaction) return showToast("That activity entry is no longer available");
+  selectedTransactionId = id;
+  const signedAmount = `${transaction.amount >= 0 ? "+" : "−"}${money(Math.abs(transaction.amount))}`;
+  openModal(`${closeButton()}<h2 id="modalTitle">Delete this activity?</h2><p class="modal-copy"><strong>${escapeHtml(transaction.note || transaction.category)}</strong><br>${escapeHtml(transaction.category)} · ${signedAmount}<br><br>This will recalculate the child’s balances and cannot be undone.</p><div class="modal-actions"><button class="secondary" type="button" data-action="close">Keep entry</button><button class="danger" type="button" data-action="confirm-delete-transaction">Delete entry</button></div>`);
+}
+
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -413,6 +430,15 @@ document.addEventListener("click", (event) => {
     restore: () => restoreInput.click(),
     "balance-cancel": showHome,
     "transfer-vlt": openVltTransfer,
+    "edit-transaction": () => openEditTransaction(actionTarget.dataset.transactionId),
+    "delete-transaction": () => openDeleteTransaction(actionTarget.dataset.transactionId),
+    "confirm-delete-transaction": () => {
+      const beforeCount = state.transactions.length;
+      state.transactions = state.transactions.filter((transaction) => transaction.id !== selectedTransactionId || transaction.kidId !== selectedKidId);
+      selectedTransactionId = null;
+      closeModal();
+      if (state.transactions.length < beforeCount) persist("Activity entry deleted");
+    },
     "confirm-vlt-transfer": () => {
       const amount = balance(selectedKidId, "Very Long Term");
       if (amount <= 0) return closeModal();
@@ -481,6 +507,26 @@ document.addEventListener("submit", (event) => {
     state.transactions.push({ id: uniqueId(), kidId: selectedKidId, category: values.get("category"), amount: amount * Number(values.get("type")), note: values.get("note").trim(), time: Date.now() });
     closeModal();
     persist("Transaction saved");
+  }
+  if (form.id === "editTransactionForm") {
+    const transaction = state.transactions.find((item) => item.id === selectedTransactionId && item.kidId === selectedKidId);
+    if (!transaction) {
+      closeModal();
+      return showToast("That activity entry is no longer available");
+    }
+    const amount = Math.round(Number(values.get("amount")) * 100) / 100;
+    if (amount < .01) return;
+    const category = values.get("category");
+    const signedAmount = amount * Number(values.get("type"));
+    transaction.category = category;
+    transaction.amount = signedAmount;
+    transaction.note = values.get("note").trim();
+    if (transaction.kind === "vlt-transfer" && (category !== "Very Long Term" || signedAmount >= 0)) delete transaction.kind;
+    if (transaction.kind === "balance-set" && !(category === "Very Long Term" && signedAmount < 0)) delete transaction.kind;
+    if (category === "Very Long Term" && signedAmount < 0 && !["balance-set", "vlt-transfer"].includes(transaction.kind)) transaction.kind = "balance-set";
+    selectedTransactionId = null;
+    closeModal();
+    persist("Activity entry updated");
   }
   if (form.id === "setBalancesForm") {
     const changes = [];
