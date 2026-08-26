@@ -2,7 +2,7 @@ const STORAGE_KEY = "familyMoneyTracker.v3";
 const PREVIOUS_KEYS = ["familyMoneyTracker.v2", "familyMoneyTracker.v1"];
 const categories = ["Short Term", "Long Term", "Very Long Term"];
 const activeCategories = ["Short Term", "Long Term"];
-const categoryIcons = { "Short Term": "↗", "Long Term": "◆", "Very Long Term": "⌁" };
+const categoryIcons = { "Short Term": "ST", "Long Term": "LT", "Very Long Term": "VLT" };
 const accents = ["#dff4e8", "#ddecff", "#ffe4dc", "#fff0bd", "#eadffc", "#d9f1ef"];
 
 let state = loadState();
@@ -265,7 +265,7 @@ function renderDetail() {
       <div>
         ${transactions.length ? transactions.map((transaction) => `
           <div class="transaction" data-transaction-id="${attr(transaction.id)}">
-            <div class="tx-icon" aria-hidden="true">${categoryIcons[transaction.category] || "•"}</div>
+            <div class="tx-icon" aria-hidden="true">${categoryIcons[transaction.category] || "—"}</div>
             <div class="tx-copy"><strong>${escapeHtml(transaction.note || transaction.category)}</strong><small>${escapeHtml(transaction.category)} · ${new Date(transaction.time).toLocaleString()}</small></div>
             <div class="tx-amount ${transaction.amount >= 0 ? "plus" : "minus"}">${transaction.amount >= 0 ? "+" : "−"}${money(Math.abs(transaction.amount))}</div>
             <div class="tx-actions"><button class="tx-action" type="button" data-action="edit-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Edit ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">✎</span><span class="tx-action-label">Edit</span></button><button class="tx-action delete" type="button" data-action="delete-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Delete ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">×</span><span class="tx-action-label">Delete</span></button></div>
