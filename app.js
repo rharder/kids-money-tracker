@@ -111,16 +111,15 @@ function renderHome() {
     <article class="kid-card" style="--card-accent:${accents[index % accents.length]}">
       <button class="kid-card-open" type="button" data-open-kid="${attr(kid.id)}" aria-label="View ${attr(kid.name)} details and Very Long Term savings">
         <div class="kid-top">
-          <div class="avatar">${escapeHtml(initials(kid.name))}</div>
+          <div class="kid-identity">
+            <div class="avatar">${escapeHtml(initials(kid.name))}</div>
+            <div><h3 class="kid-name">${escapeHtml(kid.name)}</h3><span>View savings details</span></div>
+          </div>
           <span class="arrow" aria-hidden="true">→</span>
         </div>
-        <h3 class="kid-name">${escapeHtml(kid.name)}</h3>
-        <p class="kid-total-label">Short + Long Term</p>
-        <div class="kid-total">${money(kidTotal(kid.id))}</div>
         <div class="balances">
           ${activeCategories.map((category) => `<div class="balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
         </div>
-        <span class="details-hint">Details + Very Long Term</span>
       </button>
       <div class="card-actions">
         <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}">− Record spending</button>
