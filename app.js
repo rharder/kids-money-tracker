@@ -12,7 +12,10 @@ let dragState = null;
 
 const homeView = document.getElementById("homeView");
 const detailView = document.getElementById("detailView");
+const balanceView = document.getElementById("balanceView");
 const kidsGrid = document.getElementById("kidsGrid");
+const balanceEditorList = document.getElementById("balanceEditorList");
+const balanceSaveBar = document.getElementById("balanceSaveBar");
 const modal = document.getElementById("modal");
 const modalBody = document.getElementById("modalBody");
 const restoreInput = document.getElementById("restoreInput");
@@ -86,6 +89,7 @@ function uniqueId() {
 function render() {
   renderHome();
   if (selectedKidId) renderDetail();
+  if (!balanceView.classList.contains("hidden")) renderBalanceEditor();
 }
 
 function renderHome() {
@@ -128,6 +132,31 @@ function renderHome() {
       </div>
       <button class="drag-handle" type="button" data-reorder-kid="${attr(kid.id)}" aria-label="Reorder ${attr(kid.name)}. Drag, or use arrow keys to move." title="Drag to reorder"><span aria-hidden="true">⠿</span></button>
     </article>`).join("");
+}
+
+function renderBalanceEditor() {
+  balanceSaveBar.hidden = state.kids.length === 0;
+  if (!state.kids.length) {
+    balanceEditorList.innerHTML = `<div class="empty-state"><div><h3>Add a child first</h3><p>Once a child exists, their Short Term, Long Term, and Very Long Term balances can be entered here.</p><button class="primary" type="button" data-action="add-kid" style="margin-top:18px">Add child</button></div><div class="empty-icon" aria-hidden="true">✦</div></div>`;
+    return;
+  }
+
+  balanceEditorList.innerHTML = state.kids.map((kid, index) => `
+    <section class="balance-edit-row" data-balance-kid="${attr(kid.id)}" style="--card-accent:${accents[index % accents.length]}">
+      <div class="balance-edit-kid"><div class="avatar">${escapeHtml(initials(kid.name))}</div><strong>${escapeHtml(kid.name)}</strong></div>
+      <div class="balance-edit-fields">
+        ${categories.map((category) => `<label><span>${escapeHtml(category)}</span><input type="number" step="0.01" inputmode="decimal" value="${balance(kid.id, category).toFixed(2)}" data-balance-category="${attr(category)}" aria-label="${attr(kid.name)} ${attr(category)} balance"${category === "Very Long Term" ? " min=\"0\"" : ""} required></label>`).join("")}
+      </div>
+    </section>`).join("");
+}
+
+function showBalanceEditor() {
+  selectedKidId = null;
+  homeView.classList.add("hidden");
+  detailView.classList.add("hidden");
+  balanceView.classList.remove("hidden");
+  renderBalanceEditor();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function orderedKidIds() {
@@ -245,6 +274,7 @@ function renderDetail() {
 function openKid(id) {
   selectedKidId = id;
   homeView.classList.add("hidden");
+  balanceView.classList.add("hidden");
   detailView.classList.remove("hidden");
   renderDetail();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -253,6 +283,7 @@ function openKid(id) {
 function showHome() {
   selectedKidId = null;
   detailView.classList.add("hidden");
+  balanceView.classList.add("hidden");
   homeView.classList.remove("hidden");
   renderHome();
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -332,7 +363,7 @@ async function restoreData(file) {
     if (!Array.isArray(restored.kids) || !Array.isArray(restored.transactions)) throw new Error("Invalid backup");
     if (restored.schemaVersion !== 3) restored = migrateLegacyState(restored);
     const validCategories = new Set(categories);
-    if (restored.kids.some((kid) => !kid.id || typeof kid.name !== "string") || restored.transactions.some((tx) => !tx.id || !tx.kidId || !validCategories.has(tx.category) || !Number.isFinite(Number(tx.amount)) || !Number.isFinite(Number(tx.time)) || (tx.category === "Very Long Term" && Number(tx.amount) < 0))) throw new Error("Invalid backup");
+    if (restored.kids.some((kid) => !kid.id || typeof kid.name !== "string") || restored.transactions.some((tx) => !tx.id || !tx.kidId || !validCategories.has(tx.category) || !Number.isFinite(Number(tx.amount)) || !Number.isFinite(Number(tx.time)) || (tx.category === "Very Long Term" && Number(tx.amount) < 0 && tx.kind !== "balance-set"))) throw new Error("Invalid backup");
     state = restored;
     selectedKidId = null;
     closeModal();
@@ -372,6 +403,7 @@ document.addEventListener("click", (event) => {
     backup: openBackup,
     download: exportData,
     restore: () => restoreInput.click(),
+    "balance-cancel": showHome,
     "delete-kid": deleteKid,
     "confirm-delete": () => {
       state.kids = state.kids.filter((kid) => kid.id !== selectedKidId);
@@ -434,6 +466,29 @@ document.addEventListener("submit", (event) => {
     closeModal();
     persist("Transaction saved");
   }
+  if (form.id === "setBalancesForm") {
+    const changes = [];
+    let invalid = false;
+    form.querySelectorAll("[data-balance-kid]").forEach((row) => {
+      const kidId = row.dataset.balanceKid;
+      row.querySelectorAll("[data-balance-category]").forEach((input) => {
+        const category = input.dataset.balanceCategory;
+        const target = Math.round(Number(input.value) * 100) / 100;
+        if (!Number.isFinite(target) || (category === "Very Long Term" && target < 0)) {
+          invalid = true;
+          return;
+        }
+        const difference = Math.round((target - balance(kidId, category)) * 100) / 100;
+        if (Math.abs(difference) >= .01) changes.push({ kidId, category, amount: difference });
+      });
+    });
+    if (invalid) return showToast("Enter a valid amount for every balance");
+    if (!changes.length) return showToast("Balances already match");
+    const now = Date.now();
+    changes.forEach((change, index) => state.transactions.push({ id: uniqueId(), ...change, kind: "balance-set", note: "Balance set manually", time: now + index }));
+    showHome();
+    persist("Balances updated");
+  }
 });
 
 modal.addEventListener("click", (event) => {
@@ -448,9 +503,11 @@ modal.addEventListener("input", (event) => {
 });
 restoreInput.addEventListener("change", () => restoreInput.files[0] && restoreData(restoreInput.files[0]));
 document.getElementById("addKidButton").addEventListener("click", openAddKid);
+document.getElementById("setBalancesButton").addEventListener("click", showBalanceEditor);
 document.getElementById("backupButton").addEventListener("click", openBackup);
 document.getElementById("footerBackupButton").addEventListener("click", openBackup);
 document.getElementById("backButton").addEventListener("click", showHome);
+document.getElementById("balanceBackButton").addEventListener("click", showHome);
 
 render();
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));

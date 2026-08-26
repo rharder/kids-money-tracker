@@ -39,6 +39,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .primary { background: var(--green); color: white; box-shadow: 0 8px 20px rgba(32,123,99,.2); }
 .primary:hover { background: var(--green-dark); }
 .primary.compact { padding: 11px 16px; }
+.set-balances-button { display: inline-flex; align-items: center; gap: 7px; padding: 11px 13px; }
 .secondary { background: #edf0eb; }
 .danger { background: #ffe5e0; color: #a93728; }
 .icon-button { width: 43px; height: 43px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); background: white; font-size: 19px; }
@@ -100,6 +101,20 @@ h3 { margin: 0; font-size: 21px; }
 .empty-state { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 28px; padding: 34px; border: 2px dashed var(--mint-deep); border-radius: 24px; background: rgba(255,255,255,.52); }
 .empty-state p { margin: 8px 0 0; color: var(--muted); line-height: 1.55; }
 .empty-icon { display: grid; place-items: center; width: 78px; height: 78px; border-radius: 24px; background: var(--yellow); font-size: 36px; }
+
+.balance-editor-hero { padding: 28px 30px; border-radius: 24px; background: var(--mint); }
+.balance-editor-hero h1 { font-size: clamp(32px, 5vw, 48px); }
+.balance-editor-hero > p:last-child { max-width: 720px; margin: 9px 0 0; color: #4f6b65; line-height: 1.5; }
+.balance-edit-list { display: grid; gap: 10px; margin-top: 16px; }
+.balance-edit-row { display: grid; grid-template-columns: minmax(150px, .75fr) minmax(0, 2.25fr); align-items: center; gap: 18px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 18px; background: white; box-shadow: 0 6px 24px rgba(23,49,45,.04); }
+.balance-edit-kid { display: flex; align-items: center; min-width: 0; gap: 10px; }
+.balance-edit-kid strong { overflow: hidden; font-family: Manrope, sans-serif; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.balance-edit-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.balance-edit-fields label { min-width: 0; margin: 0; }
+.balance-edit-fields label > span { display: block; margin-bottom: 5px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.balance-edit-fields input { padding: 11px 10px; font-size: 15px; }
+.balance-save-bar { position: sticky; z-index: 8; bottom: 10px; display: flex; justify-content: flex-end; gap: 9px; margin-top: 14px; padding: 10px; border: 1px solid rgba(23,49,45,.08); border-radius: 16px; background: rgba(255,250,240,.93); box-shadow: 0 12px 35px rgba(23,49,45,.13); backdrop-filter: blur(10px); }
+.balance-save-bar[hidden] { display: none; }
 
 .hidden { display: none !important; }
 .back-button { margin: 0 0 24px; }
@@ -175,6 +190,8 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .brand-mark { width: 32px; height: 32px; font-size: 18px; }
   .icon-button { width: 38px; height: 38px; font-size: 17px; }
   .primary.compact { padding: 9px 11px; font-size: 14px; }
+  .set-balances-button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; font-size: 17px; }
+  .set-balances-label { display: none; }
   main { padding: 9px 0 30px; }
   .hero, .summary-strip { display: none !important; }
   .section-heading { margin: 3px 0 9px; }
@@ -197,6 +214,13 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .card-actions { grid-template-columns: 1fr; gap: 4px; margin-top: 0; }
   .card-action { padding: 6px 2px; font-size: 9px; }
   .drag-handle { position: relative; top: auto; right: auto; grid-column: 3; grid-row: 1; width: 27px; height: 42px; border: 0; background: transparent; font-size: 19px; }
+  .balance-editor-hero { padding: 20px; border-radius: 18px; }
+  .balance-editor-hero h1 { font-size: 30px; }
+  .balance-editor-hero > p:last-child { font-size: 13px; }
+  .balance-edit-row { grid-template-columns: 1fr; gap: 10px; padding: 12px; border-radius: 14px; }
+  .balance-edit-fields { gap: 6px; }
+  .balance-edit-fields label > span { font-size: 9px; }
+  .balance-edit-fields input { padding: 10px 7px; font-size: 14px; }
   .detail-hero { grid-template-columns: 1fr; padding: 25px; }
   .detail-actions { justify-content: flex-start; }
   .detail-balances { grid-template-columns: 1fr; }
@@ -219,6 +243,7 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .transaction { grid-template-columns: auto 1fr; }
   .tx-amount { grid-column: 2; }
   footer { flex-wrap: wrap; }
+  .balance-save-bar > button { flex: 1; padding-inline: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

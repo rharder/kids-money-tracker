@@ -20,6 +20,9 @@
         <span>Family Money</span>
       </a>
       <div class="header-actions">
+        <button class="secondary compact set-balances-button" id="setBalancesButton" type="button" aria-label="Set all balances" title="Set all balances">
+          <span aria-hidden="true">✎</span><span class="set-balances-label">Set balances</span>
+        </button>
         <button class="icon-button" id="backupButton" type="button" aria-label="Backup and restore data" title="Backup and restore">
           <span aria-hidden="true">↗</span>
         </button>
@@ -61,6 +64,22 @@
       <section id="detailView" class="hidden" aria-labelledby="detailName">
         <button class="text-button back-button" id="backButton" type="button">← All kids</button>
         <div id="kidDetail"></div>
+      </section>
+
+      <section id="balanceView" class="hidden" aria-labelledby="balanceEditorTitle">
+        <button class="text-button back-button" id="balanceBackButton" type="button">← All kids</button>
+        <div class="balance-editor-hero">
+          <p class="eyebrow">Setup and corrections</p>
+          <h1 id="balanceEditorTitle">Set balances</h1>
+          <p>Enter the exact amount each child currently has. Saving creates labeled adjustments that remain in activity and backups.</p>
+        </div>
+        <form id="setBalancesForm">
+          <div id="balanceEditorList" class="balance-edit-list"></div>
+          <div class="balance-save-bar" id="balanceSaveBar">
+            <button class="secondary" type="button" data-action="balance-cancel">Cancel</button>
+            <button class="primary" type="submit">Save all balances</button>
+          </div>
+        </form>
       </section>
     </main>
 
