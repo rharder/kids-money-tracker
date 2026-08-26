@@ -164,21 +164,22 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .section-heading { margin: 3px 0 9px; }
   .section-heading .eyebrow { display: none; }
   .section-heading h2 { font-size: 22px; }
-  .kids-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .kid-card { padding: 10px; border-radius: 14px; }
+  .kids-grid { grid-template-columns: 1fr; gap: 6px; }
+  .kid-card { display: grid; grid-template-columns: minmax(0, 1fr) 62px; align-items: center; gap: 6px; padding: 8px 9px; border-radius: 14px; }
+  .kid-card-open { display: grid; grid-template-columns: minmax(0, 1fr) 136px; align-items: center; gap: 6px; }
   .kid-card::after { width: 58px; height: 58px; right: -20px; top: -20px; }
   .kid-top { gap: 6px; }
   .kid-identity { gap: 6px; }
   .kid-identity span { display: none; }
   .avatar { width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
   .kid-name { font-size: 14px; }
-  .arrow { font-size: 17px; }
-  .balances { gap: 4px; margin-top: 8px; }
+  .arrow { display: none; }
+  .balances { gap: 4px; margin-top: 0; }
   .balance { padding: 7px 6px; border-radius: 8px; }
   .balance span { margin-bottom: 2px; font-size: 8px; }
   .balance strong { font-size: 13px; }
-  .card-actions { grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
-  .card-action { padding: 8px 4px; font-size: 10px; }
+  .card-actions { grid-template-columns: 1fr; gap: 4px; margin-top: 0; }
+  .card-action { padding: 6px 2px; font-size: 9px; }
   .detail-hero { grid-template-columns: 1fr; padding: 25px; }
   .detail-actions { justify-content: flex-start; }
   .detail-balances { grid-template-columns: 1fr; }
