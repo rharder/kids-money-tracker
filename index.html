@@ -25,17 +25,29 @@
         <span>Family Money</span>
       </a>
       <div class="header-actions">
-        <button class="secondary compact set-balances-button" id="setBalancesButton" type="button" aria-label="Set all balances" title="Set all balances">
+        <span class="sync-status" id="syncStatus" aria-live="polite"><span class="sync-dot" aria-hidden="true"></span><span class="sync-label">Sign in</span></span>
+        <button class="secondary compact set-balances-button owner-only" id="setBalancesButton" type="button" aria-label="Set all balances" title="Set all balances">
           <span aria-hidden="true">✎</span><span class="set-balances-label">Set balances</span>
         </button>
-        <button class="icon-button" id="backupButton" type="button" aria-label="Backup and restore data" title="Backup and restore">
+        <button class="icon-button owner-only" id="backupButton" type="button" aria-label="Backup and restore data" title="Backup and restore">
           <span aria-hidden="true">↗</span>
         </button>
-        <button class="primary compact" id="addKidButton" type="button"><span aria-hidden="true">＋</span> Add child</button>
+        <button class="primary compact owner-only" id="addKidButton" type="button"><span aria-hidden="true">＋</span> Add child</button>
+        <button class="account-button" id="accountButton" type="button" aria-label="Google account and family access" title="Account" hidden><span aria-hidden="true">●</span></button>
       </div>
     </header>
 
     <main>
+      <section id="authView" class="auth-view" aria-labelledby="authTitle">
+        <div class="auth-card">
+          <div class="auth-mark" aria-hidden="true">$</div>
+          <p class="eyebrow">Family money, together</p>
+          <h1 id="authTitle">See the same balances on every device.</h1>
+          <p id="authMessage">Sign in with Google to open your family’s money tracker.</p>
+          <button class="primary google-button" id="signInButton" type="button"><span aria-hidden="true">G</span> Continue with Google</button>
+        </div>
+      </section>
+
       <section id="homeView" aria-labelledby="homeTitle">
         <div class="hero">
           <div>
@@ -89,9 +101,9 @@
     </main>
 
     <footer>
-      <span>Saved privately on this device</span>
+      <span id="footerStatus">Sign in to sync family data</span>
       <span class="footer-dot" aria-hidden="true"></span>
-      <button class="footer-button" id="footerBackupButton" type="button">Backup data</button>
+      <button class="footer-button owner-only" id="footerBackupButton" type="button">Backup data</button>
     </footer>
   </div>
 
@@ -101,6 +113,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <input id="restoreInput" type="file" accept="application/json,.json" hidden>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

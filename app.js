@@ -1,3 +1,26 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import {
+  browserLocalPersistence,
+  getAuth,
+  getRedirectResult,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import {
+  doc,
+  getDoc,
+  getFirestore,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+  updateDoc
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { familyDocumentPath, firebaseConfig } from "./firebase-config.js";
+
 const STORAGE_KEY = "familyMoneyTracker.v3";
 const PREVIOUS_KEYS = ["familyMoneyTracker.v2", "familyMoneyTracker.v1"];
 const categories = ["Short Term", "Long Term", "Very Long Term"];
@@ -10,6 +33,19 @@ let selectedKidId = null;
 let selectedTransactionId = null;
 let toastTimer;
 let dragState = null;
+let accessMode = "loading";
+let currentUser = null;
+let familySettings = { memberEmails: [] };
+let cloudReady = false;
+let unsubscribeFamily = null;
+let syncChain = Promise.resolve();
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+const familyRef = doc(db, familyDocumentPath);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
 const homeView = document.getElementById("homeView");
 const detailView = document.getElementById("detailView");
@@ -20,6 +56,11 @@ const balanceSaveBar = document.getElementById("balanceSaveBar");
 const modal = document.getElementById("modal");
 const modalBody = document.getElementById("modalBody");
 const restoreInput = document.getElementById("restoreInput");
+const authView = document.getElementById("authView");
+const authMessage = document.getElementById("authMessage");
+const syncStatus = document.getElementById("syncStatus");
+const footerStatus = document.getElementById("footerStatus");
+const accountButton = document.getElementById("accountButton");
 
 function loadState() {
   try {
@@ -50,11 +91,199 @@ function migrateLegacyState(data) {
   return data;
 }
 
-function persist(message) {
+function saveLocalState() {
   state.schemaVersion = 3;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function persist(message) {
+  if (accessMode === "viewer") return showToast("This account has view-only access");
+  saveLocalState();
   render();
   if (message) showToast(message);
+  if (cloudReady && accessMode === "owner") queueCloudSave();
+}
+
+function queueCloudSave() {
+  setSyncState("saving", "Saving…");
+  const payload = {
+    schemaVersion: 3,
+    kids: structuredClone(state.kids),
+    transactions: structuredClone(state.transactions),
+    updatedAt: serverTimestamp()
+  };
+  syncChain = syncChain
+    .then(() => setDoc(familyRef, payload, { merge: true }))
+    .then(() => setSyncState("synced", "Synced"))
+    .catch((error) => {
+      console.error("Cloud save failed", error);
+      setSyncState("offline", "Saved offline");
+      showToast("Saved on this device; cloud sync will retry");
+    });
+}
+
+function setSyncState(kind, label) {
+  syncStatus.dataset.state = kind;
+  syncStatus.querySelector(".sync-label").textContent = label;
+  footerStatus.textContent = kind === "synced"
+    ? "Synced securely with your family"
+    : kind === "offline"
+      ? "Saved on this device; waiting to sync"
+      : kind === "viewer"
+        ? "Viewing your family’s synced balances"
+        : kind === "saving"
+          ? "Saving changes to your family"
+          : "Sign in to sync family data";
+}
+
+function applyAccessMode(mode, message = "") {
+  accessMode = mode;
+  document.body.dataset.access = mode;
+  const authenticated = ["owner", "viewer"].includes(mode);
+  authView.classList.toggle("hidden", authenticated);
+  homeView.classList.toggle("hidden", !authenticated);
+  detailView.classList.add("hidden");
+  balanceView.classList.add("hidden");
+  if (message) authMessage.textContent = message;
+  if (mode === "owner") setSyncState("synced", "Synced");
+  else if (mode === "viewer") setSyncState("viewer", "View only");
+  else if (mode === "loading") setSyncState("saving", "Connecting…");
+  else setSyncState("signed-out", "Sign in");
+  accountButton.hidden = !currentUser;
+  render();
+}
+
+function cloudStateFromDocument(data) {
+  return {
+    schemaVersion: 3,
+    kids: Array.isArray(data.kids) ? data.kids : [],
+    transactions: Array.isArray(data.transactions) ? data.transactions : []
+  };
+}
+
+function watchFamily() {
+  unsubscribeFamily?.();
+  unsubscribeFamily = onSnapshot(familyRef, { includeMetadataChanges: true }, (snapshot) => {
+    if (!snapshot.exists()) return;
+    const data = snapshot.data();
+    familySettings = { memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [] };
+    state = cloudStateFromDocument(data);
+    saveLocalState();
+    cloudReady = true;
+    render();
+    setSyncState(snapshot.metadata.hasPendingWrites ? "saving" : accessMode === "viewer" ? "viewer" : "synced", snapshot.metadata.hasPendingWrites ? "Saving…" : accessMode === "viewer" ? "View only" : "Synced");
+  }, (error) => {
+    console.error("Family sync failed", error);
+    cloudReady = false;
+    setSyncState("offline", "Offline");
+  });
+}
+
+function hasLocalFamilyData() {
+  return state.kids.length > 0 || state.transactions.length > 0;
+}
+
+function openFirstCloudSetup() {
+  openModal(`${closeButton()}<h2 id="modalTitle">Move this tracker to Firebase?</h2><p class="modal-copy">This will upload the kids, balances, and activity currently saved on this device to your private family database. Approved family Google accounts will be able to view the totals.</p><div class="modal-actions"><button class="secondary" type="button" data-action="sign-out">Not now</button><button class="primary" type="button" data-action="confirm-cloud-setup">Move data & sync</button></div>`);
+}
+
+async function createFamilyCloud() {
+  if (!currentUser) return;
+  const payload = {
+    ownerUid: currentUser.uid,
+    ownerEmail: currentUser.email || "",
+    memberEmails: [],
+    schemaVersion: 3,
+    kids: structuredClone(state.kids),
+    transactions: structuredClone(state.transactions),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+  try {
+    await setDoc(familyRef, payload);
+    closeModal();
+    cloudReady = true;
+    applyAccessMode("owner");
+    watchFamily();
+    showToast(hasLocalFamilyData() ? "Family data moved to Firebase" : "Family tracker created");
+  } catch (error) {
+    console.error("Family setup failed", error);
+    showToast("This Google account cannot create the family tracker");
+  }
+}
+
+async function connectSignedInUser(user) {
+  currentUser = user;
+  accountButton.hidden = false;
+  accountButton.innerHTML = user.photoURL
+    ? `<img src="${attr(user.photoURL)}" alt="">`
+    : `<span>${escapeHtml(initials(user.displayName || user.email || "Google"))}</span>`;
+  applyAccessMode("loading", "Checking your family access…");
+  try {
+    const snapshot = await getDoc(familyRef);
+    if (!snapshot.exists()) {
+      accessMode = "setup";
+      document.body.dataset.access = "setup";
+      setSyncState("saving", "Setup needed");
+      openFirstCloudSetup();
+      return;
+    }
+    const data = snapshot.data();
+    familySettings = { memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [] };
+    state = cloudStateFromDocument(data);
+    saveLocalState();
+    cloudReady = true;
+    applyAccessMode(data.ownerUid === user.uid ? "owner" : "viewer");
+    watchFamily();
+  } catch (error) {
+    console.error("Access check failed", error);
+    cloudReady = false;
+    applyAccessMode("unapproved", "This Google account has not been approved yet. Ask the family owner to add its email address in Family access.");
+  }
+}
+
+async function startGoogleSignIn() {
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
+    if (error.code !== "auth/popup-closed-by-user") showToast("Google sign-in didn’t finish");
+  }
+}
+
+async function signOutUser() {
+  closeModal();
+  unsubscribeFamily?.();
+  unsubscribeFamily = null;
+  cloudReady = false;
+  await signOut(auth);
+}
+
+function openAccount() {
+  if (!currentUser) return startGoogleSignIn();
+  const ownerControls = accessMode === "owner" ? `<button class="backup-option" type="button" data-action="family-access"><span>👥</span><span><strong>Family access</strong><small>Approve Google accounts for view-only access</small></span></button>` : "";
+  openModal(`${closeButton()}<h2 id="modalTitle">${escapeHtml(currentUser.displayName || "Google account")}</h2><p class="modal-copy">${escapeHtml(currentUser.email || "")} · ${accessMode === "owner" ? "Family owner" : "View only"}</p><div class="backup-options">${ownerControls}<button class="backup-option" type="button" data-action="sign-out"><span>↪</span><span><strong>Sign out</strong><small>Leave this family tracker on this device</small></span></button></div>`);
+}
+
+function openFamilyAccess() {
+  const emails = familySettings.memberEmails;
+  openModal(`${closeButton()}<h2 id="modalTitle">Family access</h2><p class="modal-copy">Approved Google accounts can see every child’s totals and activity, but cannot make changes.</p><form id="familyAccessForm"><label for="memberEmail">Google account email</label><div class="inline-form"><input id="memberEmail" name="email" type="email" autocomplete="email" placeholder="kid@example.com" required><button class="primary" type="submit">Add</button></div></form><div class="member-list">${emails.length ? emails.map((email) => `<div><span>${escapeHtml(email)}</span><button class="tx-action delete" type="button" data-action="remove-member" data-member-email="${attr(email)}" aria-label="Remove ${attr(email)}">Remove</button></div>`).join("") : `<p>No viewing accounts added yet.</p>`}</div>`);
+}
+
+async function updateMemberEmails(emails, successMessage) {
+  try {
+    await updateDoc(familyRef, { memberEmails: [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))], updatedAt: serverTimestamp() });
+    familySettings.memberEmails = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+    openFamilyAccess();
+    showToast(successMessage);
+  } catch (error) {
+    console.error("Family access update failed", error);
+    showToast("Family access could not be updated");
+  }
 }
 
 function money(value) {
@@ -106,7 +335,7 @@ function renderHome() {
         <div>
           <h3>Ready for the first money lesson?</h3>
           <p>Add a child, see their everyday money, and divide weekly pay into five equal shares.</p>
-          <button class="primary" type="button" data-action="add-kid" style="margin-top:18px">Add your first child</button>
+          <button class="primary owner-only" type="button" data-action="add-kid" style="margin-top:18px">Add your first child</button>
         </div>
         <div class="empty-icon" aria-hidden="true">✦</div>
       </div>`;
@@ -127,18 +356,18 @@ function renderHome() {
           ${activeCategories.map((category) => `<div class="balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
         </div>
       </button>
-      <div class="card-actions">
+      <div class="card-actions owner-only">
         <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}" aria-label="Record spending for ${attr(kid.name)}">− Spend</button>
         <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}" aria-label="Add weekly pay for ${attr(kid.name)}">＋ Pay</button>
       </div>
-      <button class="drag-handle" type="button" data-reorder-kid="${attr(kid.id)}" aria-label="Reorder ${attr(kid.name)}. Drag, or use arrow keys to move." title="Drag to reorder"><span aria-hidden="true">⠿</span></button>
+      <button class="drag-handle owner-only" type="button" data-reorder-kid="${attr(kid.id)}" aria-label="Reorder ${attr(kid.name)}. Drag, or use arrow keys to move." title="Drag to reorder"><span aria-hidden="true">⠿</span></button>
     </article>`).join("");
 }
 
 function renderBalanceEditor() {
   balanceSaveBar.hidden = state.kids.length === 0;
   if (!state.kids.length) {
-    balanceEditorList.innerHTML = `<div class="empty-state"><div><h3>Add a child first</h3><p>Once a child exists, their Short Term, Long Term, and Very Long Term balances can be entered here.</p><button class="primary" type="button" data-action="add-kid" style="margin-top:18px">Add child</button></div><div class="empty-icon" aria-hidden="true">✦</div></div>`;
+    balanceEditorList.innerHTML = `<div class="empty-state"><div><h3>Add a child first</h3><p>Once a child exists, their Short Term, Long Term, and Very Long Term balances can be entered here.</p><button class="primary owner-only" type="button" data-action="add-kid" style="margin-top:18px">Add child</button></div><div class="empty-icon" aria-hidden="true">✦</div></div>`;
     return;
   }
 
@@ -243,7 +472,7 @@ function renderDetail() {
         <div class="avatar">${escapeHtml(initials(kid.name))}</div>
         <div><p class="eyebrow">Money dashboard</p><h1 id="detailName">${escapeHtml(kid.name)}</h1></div>
       </div>
-      <div class="detail-actions">
+      <div class="detail-actions owner-only">
         <button class="secondary" type="button" data-action="rename">Rename</button>
         <button class="danger" type="button" data-action="delete-kid">Delete</button>
       </div>
@@ -251,24 +480,24 @@ function renderDetail() {
         ${activeCategories.map((category) => `<div class="detail-balance"><span>${escapeHtml(category)}</span><strong>${money(balance(kid.id, category))}</strong></div>`).join("")}
       </div>
     </div>
-    <div class="quick-actions">
+    <div class="quick-actions owner-only">
       <button class="quick-action primary" type="button" data-action="adjust"><span>Record spending<small>Short Term or Long Term</small></span><span class="quick-action-icon">−</span></button>
       <button class="quick-action secondary" type="button" data-action="pay"><span>Add weekly pay<small>Divide into five equal shares</small></span><span class="quick-action-icon">＋</span></button>
     </div>
     <section class="vault-card" aria-labelledby="vaultTitle">
       <div class="vault-icon" aria-hidden="true">⌁</div>
       <div class="vault-copy"><p class="eyebrow">Quiet savings</p><h2 id="vaultTitle">Very Long Term</h2><p>Amount still held in your checking account for their future.</p></div>
-      <div class="vault-actions"><strong>${money(vltBalance)}</strong><button class="secondary" type="button" data-action="transfer-vlt"${vltBalance <= 0 ? " disabled" : ""}>Mark transferred</button></div>
+      <div class="vault-actions"><strong>${money(vltBalance)}</strong><button class="secondary owner-only" type="button" data-action="transfer-vlt"${vltBalance <= 0 ? " disabled" : ""}>Mark transferred</button></div>
     </section>
     <div class="history-card">
-      <div class="history-head"><div><h2>Activity</h2><p>${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}</p></div><button class="secondary" type="button" data-action="backup">Backup</button></div>
+      <div class="history-head"><div><h2>Activity</h2><p>${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}</p></div><button class="secondary owner-only" type="button" data-action="backup">Backup</button></div>
       <div>
         ${transactions.length ? transactions.map((transaction) => `
           <div class="transaction" data-transaction-id="${attr(transaction.id)}">
             <div class="tx-icon" aria-hidden="true">${categoryIcons[transaction.category] || "—"}</div>
             <div class="tx-copy"><strong>${escapeHtml(transaction.note || transaction.category)}</strong><small>${escapeHtml(transaction.category)} · ${new Date(transaction.time).toLocaleString()}</small></div>
             <div class="tx-amount ${transaction.amount >= 0 ? "plus" : "minus"}">${transaction.amount >= 0 ? "+" : "−"}${money(Math.abs(transaction.amount))}</div>
-            <div class="tx-actions"><button class="tx-action" type="button" data-action="edit-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Edit ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">✎</span><span class="tx-action-label">Edit</span></button><button class="tx-action delete" type="button" data-action="delete-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Delete ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">×</span><span class="tx-action-label">Delete</span></button></div>
+            <div class="tx-actions owner-only"><button class="tx-action" type="button" data-action="edit-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Edit ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">✎</span><span class="tx-action-label">Edit</span></button><button class="tx-action delete" type="button" data-action="delete-transaction" data-transaction-id="${attr(transaction.id)}" aria-label="Delete ${attr(transaction.note || transaction.category)}"><span aria-hidden="true">×</span><span class="tx-action-label">Delete</span></button></div>
           </div>`).join("") : `<div class="empty-history">No activity yet. Add weekly pay to get started.</div>`}
       </div>
     </div>`;
@@ -340,12 +569,12 @@ function openAdjust() {
 }
 
 function openBackup() {
-  openModal(`${closeButton()}<h2 id="modalTitle">Keep your data safe</h2><p class="modal-copy">Your family's information lives only in this browser. Download a backup regularly so it can be restored later.</p><div class="backup-options"><button class="backup-option" type="button" data-action="download"><span>↓</span><span><strong>Download backup</strong><small>Save all kids, balances, and activity</small></span></button><button class="backup-option" type="button" data-action="restore"><span>↑</span><span><strong>Restore a backup</strong><small>Replace this device’s data from a JSON file</small></span></button></div>`);
+  openModal(`${closeButton()}<h2 id="modalTitle">Backup and restore</h2><p class="modal-copy">Firebase keeps the family in sync. A downloaded JSON backup gives you an extra copy you control.</p><div class="backup-options"><button class="backup-option" type="button" data-action="download"><span>↓</span><span><strong>Download backup</strong><small>Save all kids, balances, and activity</small></span></button><button class="backup-option" type="button" data-action="restore"><span>↑</span><span><strong>Restore a backup</strong><small>Replace the synced family data from a JSON file</small></span></button></div>`);
 }
 
 function deleteKid() {
   const kid = state.kids.find((item) => item.id === selectedKidId);
-  openModal(`${closeButton()}<h2 id="modalTitle">Delete ${escapeHtml(kid.name)}?</h2><p class="modal-copy">This permanently removes their balances and transaction history from this device. Download a backup first if you may need it later.</p><div class="modal-actions"><button class="secondary" type="button" data-action="close">Keep child</button><button class="danger" type="button" data-action="confirm-delete">Delete everything</button></div>`);
+  openModal(`${closeButton()}<h2 id="modalTitle">Delete ${escapeHtml(kid.name)}?</h2><p class="modal-copy">This permanently removes their balances and transaction history from the synced family tracker. Download a backup first if you may need it later.</p><div class="modal-actions"><button class="secondary" type="button" data-action="close">Keep child</button><button class="danger" type="button" data-action="confirm-delete">Delete everything</button></div>`);
 }
 
 function openVltTransfer() {
@@ -417,6 +646,8 @@ document.addEventListener("click", (event) => {
     if (kidOpen) return openKid(kidOpen.dataset.openKid);
     return;
   }
+  const ownerActions = new Set(["add-kid", "rename", "pay", "adjust", "quick-spend", "quick-pay", "backup", "download", "restore", "balance-cancel", "transfer-vlt", "edit-transaction", "delete-transaction", "confirm-delete-transaction", "confirm-vlt-transfer", "delete-kid", "confirm-delete", "family-access", "remove-member"]);
+  if (ownerActions.has(action) && accessMode !== "owner") return showToast("This account has view-only access");
   const actions = {
     "add-kid": openAddKid,
     close: closeModal,
@@ -426,6 +657,10 @@ document.addEventListener("click", (event) => {
     "quick-spend": () => { selectedKidId = actionTarget.dataset.targetKid; openAdjust(); },
     "quick-pay": () => { selectedKidId = actionTarget.dataset.targetKid; openPay(); },
     backup: openBackup,
+    "family-access": openFamilyAccess,
+    "remove-member": () => updateMemberEmails(familySettings.memberEmails.filter((email) => email !== actionTarget.dataset.memberEmail), "Viewing account removed"),
+    "sign-out": signOutUser,
+    "confirm-cloud-setup": createFamilyCloud,
     download: exportData,
     restore: () => restoreInput.click(),
     "balance-cancel": showHome,
@@ -551,6 +786,12 @@ document.addEventListener("submit", (event) => {
     showHome();
     persist("Balances updated");
   }
+  if (form.id === "familyAccessForm") {
+    if (accessMode !== "owner") return showToast("Only the family owner can change access");
+    const email = String(values.get("email") || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) return showToast("Enter a valid Google account email");
+    updateMemberEmails([...familySettings.memberEmails, email], "Viewing account added");
+  }
 });
 
 modal.addEventListener("click", (event) => {
@@ -570,6 +811,21 @@ document.getElementById("backupButton").addEventListener("click", openBackup);
 document.getElementById("footerBackupButton").addEventListener("click", openBackup);
 document.getElementById("backButton").addEventListener("click", showHome);
 document.getElementById("balanceBackButton").addEventListener("click", showHome);
+document.getElementById("signInButton").addEventListener("click", startGoogleSignIn);
+accountButton.addEventListener("click", openAccount);
 
-render();
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+getRedirectResult(auth).catch((error) => {
+  console.error("Redirect sign-in failed", error);
+  showToast("Google sign-in didn’t finish");
+});
+onAuthStateChanged(auth, (user) => {
+  if (user) return connectSignedInUser(user);
+  currentUser = null;
+  accountButton.hidden = true;
+  cloudReady = false;
+  applyAccessMode("signedOut", "Sign in with Google to open your family’s money tracker.");
+});
+
+applyAccessMode("loading", "Connecting to your family tracker…");
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));

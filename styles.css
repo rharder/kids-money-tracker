@@ -33,6 +33,12 @@ button:disabled, button:disabled:hover { cursor: not-allowed; opacity: .5; trans
 .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font-family: Manrope, sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
 .brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: var(--green); color: white; font-size: 21px; box-shadow: inset 0 0 0 5px rgba(255,255,255,.14); }
 .header-actions { display: flex; align-items: center; gap: 10px; }
+.sync-status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #aab4b1; box-shadow: 0 0 0 3px rgba(113,129,126,.1); }
+.sync-status[data-state="synced"] .sync-dot, .sync-status[data-state="viewer"] .sync-dot { background: var(--green); box-shadow: 0 0 0 3px rgba(32,123,99,.12); }
+.sync-status[data-state="saving"] .sync-dot { background: #d6a424; animation: sync-pulse 1.2s ease-in-out infinite; }
+.sync-status[data-state="offline"] .sync-dot { background: var(--coral); }
+@keyframes sync-pulse { 50% { opacity: .4; } }
 
 button { border: 0; border-radius: 12px; padding: 13px 18px; color: var(--ink); background: #edf0eb; font-weight: 700; transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
 button:hover { transform: translateY(-1px); }
@@ -44,7 +50,21 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .secondary { background: #edf0eb; }
 .danger { background: #ffe5e0; color: #a93728; }
 .icon-button { width: 43px; height: 43px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); background: white; font-size: 19px; }
+.account-button { display: grid; place-items: center; width: 43px; height: 43px; padding: 0; overflow: hidden; border: 2px solid white; border-radius: 50%; background: var(--mint); color: var(--green-dark); box-shadow: 0 0 0 1px var(--line); font-size: 12px; }
+.account-button[hidden] { display: none; }
+.account-button img { width: 100%; height: 100%; object-fit: cover; }
+.account-button:hover { transform: translateY(-1px); }
 .text-button { background: transparent; padding: 4px 0; color: var(--green); }
+
+body:not([data-access="owner"]) .owner-only { display: none !important; }
+
+.auth-view { min-height: calc(100vh - 170px); display: grid; place-items: center; padding: 34px 0 70px; }
+.auth-card { width: min(650px, 100%); padding: 52px; border: 1px solid var(--line); border-radius: 30px; background: white; text-align: center; box-shadow: var(--shadow); }
+.auth-mark { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 24px; border-radius: 50%; background: var(--green); color: white; font-family: Manrope, sans-serif; font-size: 34px; font-weight: 800; box-shadow: inset 0 0 0 8px rgba(255,255,255,.14); }
+.auth-card h1 { margin-inline: auto; font-size: clamp(34px, 5vw, 50px); }
+.auth-card > p:not(.eyebrow) { max-width: 470px; margin: 17px auto 25px; color: var(--muted); font-size: 17px; line-height: 1.55; }
+.google-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 230px; }
+.google-button span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: white; color: #4285f4; font-weight: 800; }
 
 main { padding: 18px 0 50px; }
 .hero { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px; padding: 18px 26px; overflow: hidden; border-radius: 20px; background: var(--mint); position: relative; }
@@ -189,6 +209,12 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
 .backup-option span:first-child { font-size: 25px; }
 .backup-option strong, .backup-option small { display: block; }
 .backup-option small { margin-top: 3px; color: var(--muted); font-weight: 500; }
+.inline-form { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+.inline-form button { padding-inline: 16px; }
+.member-list { display: grid; gap: 8px; margin-top: 22px; }
+.member-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border-radius: 11px; background: #f4f6f2; }
+.member-list > div span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.member-list > p { margin: 0; padding: 18px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
 .toast { position: fixed; z-index: 20; left: 50%; bottom: 28px; max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 12px; background: var(--ink); color: white; opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: opacity .2s, transform .2s; box-shadow: var(--shadow); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -198,6 +224,8 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .brand { font-size: 16px; }
   .brand-mark { width: 32px; height: 32px; font-size: 18px; }
   .icon-button { width: 38px; height: 38px; font-size: 17px; }
+  .account-button { width: 38px; height: 38px; }
+  .sync-label { display: none; }
   .primary.compact { padding: 9px 11px; font-size: 14px; }
   .set-balances-button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; font-size: 17px; }
   .set-balances-label { display: none; }
@@ -208,6 +236,7 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .section-heading h2 { font-size: 22px; }
   .kids-grid { grid-template-columns: 1fr; gap: 6px; }
   .kid-card { display: grid; grid-template-columns: minmax(0, 1fr) 58px 25px; align-items: center; gap: 5px; padding: 7px; border-radius: 14px; }
+  body[data-access="viewer"] .kid-card { grid-template-columns: minmax(0, 1fr); }
   .kid-card-open { display: grid; grid-template-columns: minmax(72px, .75fr) minmax(148px, 1.25fr); align-items: center; gap: 5px; }
   .kid-card::after { width: 58px; height: 58px; right: -20px; top: -20px; }
   .kid-top { gap: 6px; }
@@ -236,6 +265,9 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .quick-actions { grid-template-columns: 1fr; }
   .vault-card { grid-template-columns: auto 1fr; }
   .vault-actions { grid-column: 2; align-items: flex-start; }
+  .auth-view { min-height: calc(100vh - 130px); padding: 20px 0 45px; }
+  .auth-card { padding: 34px 22px; border-radius: 22px; }
+  .auth-card > p:not(.eyebrow) { font-size: 15px; }
 }
 
 @media (max-width: 480px) {
