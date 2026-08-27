@@ -20,6 +20,7 @@ import {
   updateDoc
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { familyDocumentPath, firebaseConfig } from "./firebase-config.js";
+import { demoState } from "./demo-data.js";
 
 const STORAGE_KEY = "familyMoneyTracker.v3";
 const PREVIOUS_KEYS = ["familyMoneyTracker.v2", "familyMoneyTracker.v1"];
@@ -29,8 +30,9 @@ const categoryIcons = { "Short Term": "ST", "Long Term": "LT", "Very Long Term":
 const accents = ["#dff4e8", "#ddecff", "#ffe4dc", "#fff0bd", "#eadffc", "#d9f1ef"];
 const graphemeSegmenter = globalThis.Intl?.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
 const leadingEmojiPattern = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3)/u;
+const DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
 
-let state = loadState();
+let state = DEMO_MODE ? structuredClone(demoState) : loadState();
 let selectedKidId = null;
 let selectedTransactionId = null;
 let toastTimer;
@@ -835,18 +837,28 @@ document.getElementById("balanceBackButton").addEventListener("click", showHome)
 document.getElementById("signInButton").addEventListener("click", startGoogleSignIn);
 accountButton.addEventListener("click", openAccount);
 
-setPersistence(auth, browserLocalPersistence).catch(() => {});
-getRedirectResult(auth).catch((error) => {
-  console.error("Redirect sign-in failed", error);
-  showToast("Google sign-in didn’t finish");
-});
-onAuthStateChanged(auth, (user) => {
-  if (user) return connectSignedInUser(user);
+if (DEMO_MODE) {
   currentUser = null;
   accountButton.hidden = true;
   cloudReady = false;
-  applyAccessMode("signedOut", "Sign in with Google to open your family’s money tracker.");
-});
-
-applyAccessMode("loading", "Connecting to your family tracker…");
+  document.title = "Family Money Tracker — Demo";
+  applyAccessMode("viewer");
+  syncStatus.dataset.state = "viewer";
+  syncStatus.querySelector(".sync-label").textContent = "Demo";
+  footerStatus.textContent = "Demo data — your real family tracker is unchanged";
+} else {
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
+  getRedirectResult(auth).catch((error) => {
+    console.error("Redirect sign-in failed", error);
+    showToast("Google sign-in didn’t finish");
+  });
+  onAuthStateChanged(auth, (user) => {
+    if (user) return connectSignedInUser(user);
+    currentUser = null;
+    accountButton.hidden = true;
+    cloudReady = false;
+    applyAccessMode("signedOut", "Sign in with Google to open your family’s money tracker.");
+  });
+  applyAccessMode("loading", "Connecting to your family tracker…");
+}
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));

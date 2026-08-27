@@ -24,3 +24,7 @@ The Firebase web configuration in `firebase-config.js` identifies the public Fir
 The repository includes a GitHub Actions workflow that publishes the site whenever `main` is updated.
 
 Google Authentication must list `rharder.github.io` as an authorized domain. Firestore is stored in the `nam5` U.S. multi-region.
+
+## Screenshot demo
+
+Open [`?demo=1`](https://rharder.github.io/kids-money-tracker/?demo=1) for a read-only set of fake kids, balances, and activity. Demo mode does not read, upload, or modify the real family tracker.
