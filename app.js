@@ -6,7 +6,6 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
-  signInWithPopup,
   signInWithRedirect,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
@@ -245,13 +244,10 @@ async function connectSignedInUser(user) {
 async function startGoogleSignIn() {
   try {
     await setPersistence(auth, browserLocalPersistence);
-    await signInWithPopup(auth, googleProvider);
+    await signInWithRedirect(auth, googleProvider);
   } catch (error) {
-    if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
-      await signInWithRedirect(auth, googleProvider);
-      return;
-    }
-    if (error.code !== "auth/popup-closed-by-user") showToast("Google sign-in didn’t finish");
+    console.error("Google sign-in failed", error);
+    showToast("Google sign-in didn’t finish");
   }
 }
 
