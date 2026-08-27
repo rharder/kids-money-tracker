@@ -6,6 +6,7 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
+  signInWithPopup,
   signInWithRedirect,
   signOut
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
@@ -166,7 +167,14 @@ function watchFamily() {
     if (!snapshot.exists()) return;
     const data = snapshot.data();
     familySettings = { memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [] };
-    state = cloudStateFromDocument(data);
+    const cloudState = cloudStateFromDocument(data);
+    if (data.ownerUid === user.uid && cloudState.kids.length === 0 && cloudState.transactions.length === 0 && hasLocalFamilyData()) {
+      cloudReady = true;
+      applyAccessMode("owner");
+      openFirstCloudSetup();
+      return;
+    }
+    state = cloudState;
     saveLocalState();
     cloudReady = true;
     render();
@@ -244,10 +252,13 @@ async function connectSignedInUser(user) {
 async function startGoogleSignIn() {
   try {
     await setPersistence(auth, browserLocalPersistence);
-    await signInWithRedirect(auth, googleProvider);
+    await signInWithPopup(auth, googleProvider);
   } catch (error) {
-    console.error("Google sign-in failed", error);
-    showToast("Google sign-in didn’t finish");
+    if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment"].includes(error.code)) {
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
+    if (error.code !== "auth/popup-closed-by-user") showToast("Google sign-in didn’t finish");
   }
 }
 
