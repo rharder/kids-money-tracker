@@ -341,7 +341,7 @@ function renderHome() {
       <div class="empty-state">
         <div>
           <h3>Ready for the first money lesson?</h3>
-          <p>Add a child, see their everyday money, and divide weekly pay into five equal shares.</p>
+          <p>Add a child, see their everyday money, and add weekly pay to all three savings categories.</p>
           <button class="primary owner-only" type="button" data-action="add-kid" style="margin-top:18px">Add your first child</button>
         </div>
         <div class="empty-icon" aria-hidden="true">✦</div>
@@ -489,7 +489,7 @@ function renderDetail() {
     </div>
     <div class="quick-actions owner-only">
       <button class="quick-action primary" type="button" data-action="adjust"><span>Record spending<small>Short Term or Long Term</small></span><span class="quick-action-icon">−</span></button>
-      <button class="quick-action secondary" type="button" data-action="pay"><span>Add weekly pay<small>Divide into five equal shares</small></span><span class="quick-action-icon">＋</span></button>
+      <button class="quick-action secondary" type="button" data-action="pay"><span>Add weekly pay<small>Same amount in all three categories</small></span><span class="quick-action-icon">＋</span></button>
     </div>
     <section class="vault-card" aria-labelledby="vaultTitle">
       <div class="vault-icon" aria-hidden="true">⌁</div>
@@ -552,23 +552,15 @@ function openRename() {
 }
 
 function openPay() {
-  openModal(`${closeButton()}<h2 id="modalTitle">Add weekly pay</h2><p class="modal-copy">The total is divided into five equal shares. Pocket and Tithe stay untracked; the three savings shares are added here.</p><form id="payForm"><label for="payAmount">Total earned</label><input id="payAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="25.00" required><div id="splitPreview" class="split-preview" hidden></div><label for="payNote">Note <span style="font-weight:400">(optional)</span></label><input id="payNote" name="note" maxlength="80" placeholder="Weekly jobs"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Divide & add</button></div></form>`);
+  openModal(`${closeButton()}<h2 id="modalTitle">Add weekly pay</h2><p class="modal-copy">Enter the amount to add to each tracked category. Pocket and Tithe stay untracked.</p><form id="payForm"><label for="payAmount">Amount per category</label><input id="payAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="5.00" required><div id="splitPreview" class="split-preview" hidden></div><label for="payNote">Note <span style="font-weight:400">(optional)</span></label><input id="payNote" name="note" maxlength="80" placeholder="Weekly jobs"><div class="modal-actions"><button class="secondary" type="button" data-action="close">Cancel</button><button class="primary" type="submit">Add to all three</button></div></form>`);
 }
 
 function updateSplitPreview(input) {
   const cents = Math.round(Number(input.value) * 100);
   const preview = document.getElementById("splitPreview");
   if (!cents || cents < 1) return preview.hidden = true;
-  const shares = splitCents(cents);
   preview.hidden = false;
-  preview.innerHTML = categories.map((category, index) => `<div><span>${escapeHtml(category)}</span><strong>${money(shares[index + 2] / 100)}</strong></div>`).join("");
-}
-
-function splitCents(totalCents) {
-  const base = Math.floor(totalCents / 5);
-  const shares = [base, base, base, base, base];
-  for (let index = 0; index < totalCents - base * 5; index += 1) shares[index] += 1;
-  return shares;
+  preview.innerHTML = categories.map((category) => `<div><span>${escapeHtml(category)}</span><strong>${money(cents / 100)}</strong></div>`).join("");
 }
 
 function openAdjust() {
@@ -735,13 +727,13 @@ document.addEventListener("submit", (event) => {
     persist("Name updated");
   }
   if (form.id === "payForm") {
-    const totalCents = Math.round(Number(values.get("amount")) * 100);
-    if (totalCents < 1) return;
-    const shares = splitCents(totalCents);
-    const note = values.get("note").trim() || `Weekly pay (${money(totalCents / 100)} total)`;
-    categories.forEach((category, index) => state.transactions.push({ id: uniqueId(), kidId: selectedKidId, category, amount: shares[index + 2] / 100, note, time: Date.now() + index }));
+    const amountCents = Math.round(Number(values.get("amount")) * 100);
+    if (amountCents < 1) return;
+    const amount = amountCents / 100;
+    const note = values.get("note").trim() || `Weekly pay (${money(amount)} per category)`;
+    categories.forEach((category, index) => state.transactions.push({ id: uniqueId(), kidId: selectedKidId, category, amount, note, time: Date.now() + index }));
     closeModal();
-    persist("Weekly pay divided and added");
+    persist("Weekly pay added to all three categories");
   }
   if (form.id === "adjustForm") {
     const amount = Math.round(Number(values.get("amount")) * 100) / 100;

@@ -7,7 +7,7 @@ A private, installable family ledger for teaching kids how to divide and manage 
 - Adds a separate ledger for each child
 - Shows Short Term and Long Term balances for every child at a glance
 - Records spending from Short Term or Long Term directly from the family dashboard
-- Splits weekly pay into five equal shares: Pocket and Tithe are untracked, while Short Term, Long Term, and Very Long Term are credited
+- Adds the entered weekly-pay amount to each tracked category: Short Term, Long Term, and Very Long Term; Pocket and Tithe remain untracked
 - Keeps Very Long Term savings visible in a quieter child detail view and prevents it from being spent
 - Keeps a complete transaction history
 - Syncs through Cloud Firestore after Google sign-in
