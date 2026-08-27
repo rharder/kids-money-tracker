@@ -2,7 +2,7 @@
 
 A private, installable family ledger for teaching kids how to divide and manage money, backed by Firebase so the family sees the same balances on every device.
 
-![Family Money Tracker home screen showing four fictional kids and their Short Term and Long Term balances](screenshots/homescreen.png)
+![Family Money Tracker mobile home screen showing four fictional kids, their balances, and quick Spend and Pay buttons](screenshots/homescreen.png)
 
 ## What it does
 
