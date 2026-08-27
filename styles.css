@@ -88,9 +88,9 @@ h3 { margin: 0; font-size: 21px; }
 .kid-total { font-family: Manrope, sans-serif; font-size: 27px; letter-spacing: -.04em; }
 .arrow { position: relative; z-index: 1; margin-right: 34px; color: var(--green); font-size: 22px; }
 .balances { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 12px; }
-.balance { min-width: 0; padding: 9px 8px; border-radius: 10px; background: #f7f8f5; }
-.balance span { display: block; margin-bottom: 3px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.balance strong { display: block; overflow: hidden; font-size: 14px; text-overflow: ellipsis; }
+.balance { min-width: 0; padding: 8px; border-radius: 10px; background: #f7f8f5; }
+.balance span { display: block; margin-bottom: 2px; overflow: hidden; color: var(--muted); font-size: 9px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.balance strong { display: block; overflow: hidden; font-family: Manrope, sans-serif; font-size: 18px; font-weight: 800; line-height: 1.08; letter-spacing: -.035em; text-overflow: ellipsis; }
 .card-actions { display: grid; grid-template-columns: 1.2fr 1fr; gap: 6px; margin-top: 9px; }
 .card-action { position: relative; z-index: 1; padding: 9px 6px; font-size: 11px; white-space: nowrap; }
 .card-action.spend { background: var(--green); color: white; }
@@ -207,8 +207,8 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .section-heading .eyebrow { display: none; }
   .section-heading h2 { font-size: 22px; }
   .kids-grid { grid-template-columns: 1fr; gap: 6px; }
-  .kid-card { display: grid; grid-template-columns: minmax(0, 1fr) 62px 27px; align-items: center; gap: 6px; padding: 8px 8px; border-radius: 14px; }
-  .kid-card-open { display: grid; grid-template-columns: minmax(0, 1fr) 136px; align-items: center; gap: 6px; }
+  .kid-card { display: grid; grid-template-columns: minmax(0, 1fr) 58px 25px; align-items: center; gap: 5px; padding: 7px; border-radius: 14px; }
+  .kid-card-open { display: grid; grid-template-columns: minmax(72px, .75fr) minmax(148px, 1.25fr); align-items: center; gap: 5px; }
   .kid-card::after { width: 58px; height: 58px; right: -20px; top: -20px; }
   .kid-top { gap: 6px; }
   .kid-identity { gap: 6px; }
@@ -217,12 +217,12 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .kid-name { font-size: 14px; }
   .arrow { display: none; }
   .balances { gap: 4px; margin-top: 0; }
-  .balance { padding: 7px 6px; border-radius: 8px; }
-  .balance span { margin-bottom: 2px; font-size: 8px; }
-  .balance strong { font-size: 13px; }
+  .balance { padding: 6px 5px; border-radius: 8px; }
+  .balance span { margin-bottom: 1px; font-size: 8px; }
+  .balance strong { font-size: 18px; line-height: 1; }
   .card-actions { grid-template-columns: 1fr; gap: 4px; margin-top: 0; }
   .card-action { padding: 6px 2px; font-size: 9px; }
-  .drag-handle { position: relative; top: auto; right: auto; grid-column: 3; grid-row: 1; width: 27px; height: 42px; border: 0; background: transparent; font-size: 19px; }
+  .drag-handle { position: relative; top: auto; right: auto; grid-column: 3; grid-row: 1; width: 25px; height: 42px; border: 0; background: transparent; font-size: 19px; }
   .balance-editor-hero { padding: 20px; border-radius: 18px; }
   .balance-editor-hero h1 { font-size: 30px; }
   .balance-editor-hero > p:last-child { font-size: 13px; }
