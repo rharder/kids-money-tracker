@@ -101,6 +101,12 @@ function saveLocalState() {
 }
 
 function persist(message) {
+  if (DEMO_MODE) {
+    state.schemaVersion = 3;
+    render();
+    if (message) showToast(`${message} — demo only`);
+    return;
+  }
   if (accessMode === "viewer") return showToast("This account has view-only access");
   saveLocalState();
   render();
@@ -842,10 +848,12 @@ if (DEMO_MODE) {
   accountButton.hidden = true;
   cloudReady = false;
   document.title = "Family Money Tracker — Demo";
-  applyAccessMode("viewer");
+  document.body.dataset.demo = "true";
+  applyAccessMode("owner");
+  accountButton.hidden = true;
   syncStatus.dataset.state = "viewer";
   syncStatus.querySelector(".sync-label").textContent = "Demo";
-  footerStatus.textContent = "Demo data — your real family tracker is unchanged";
+  footerStatus.textContent = "Demo edits reset on refresh — your real family tracker is unchanged";
 } else {
   setPersistence(auth, browserLocalPersistence).catch(() => {});
   getRedirectResult(auth).catch((error) => {

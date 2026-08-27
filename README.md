@@ -29,4 +29,4 @@ Google Authentication must list `rharder.github.io` as an authorized domain. Fir
 
 ## Screenshot demo
 
-Open [`?demo=1`](https://rharder.github.io/kids-money-tracker/?demo=1) for a read-only set of fake kids, balances, and activity. Demo mode does not read, upload, or modify the real family tracker.
+Open [`?demo=1`](https://rharder.github.io/kids-money-tracker/?demo=1) for an interactive set of fake kids, balances, and activity. Demo changes reset when the page refreshes and never read, upload, or modify the real family tracker.
