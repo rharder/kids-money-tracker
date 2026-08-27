@@ -27,6 +27,8 @@ const categories = ["Short Term", "Long Term", "Very Long Term"];
 const activeCategories = ["Short Term", "Long Term"];
 const categoryIcons = { "Short Term": "ST", "Long Term": "LT", "Very Long Term": "VLT" };
 const accents = ["#dff4e8", "#ddecff", "#ffe4dc", "#fff0bd", "#eadffc", "#d9f1ef"];
+const graphemeSegmenter = globalThis.Intl?.Segmenter ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+const leadingEmojiPattern = /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[#*0-9]\uFE0F?\u20E3)/u;
 
 let state = loadState();
 let selectedKidId = null;
@@ -311,6 +313,19 @@ function initials(name) {
   return String(name).trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
+function kidPresentation(name) {
+  const fullName = String(name).trim();
+  const firstGrapheme = graphemeSegmenter
+    ? graphemeSegmenter.segment(fullName)[Symbol.iterator]().next().value?.segment || ""
+    : Array.from(fullName)[0] || "";
+  const usesEmojiAvatar = leadingEmojiPattern.test(firstGrapheme);
+  return {
+    avatar: usesEmojiAvatar ? firstGrapheme : initials(fullName),
+    name: usesEmojiAvatar ? fullName.slice(firstGrapheme.length).trimStart() || "Child" : fullName,
+    usesEmojiAvatar
+  };
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }
@@ -349,13 +364,15 @@ function renderHome() {
     return;
   }
 
-  kidsGrid.innerHTML = state.kids.map((kid, index) => `
+  kidsGrid.innerHTML = state.kids.map((kid, index) => {
+    const display = kidPresentation(kid.name);
+    return `
     <article class="kid-card" data-kid-id="${attr(kid.id)}" style="--card-accent:${accents[index % accents.length]}">
-      <button class="kid-card-open" type="button" data-open-kid="${attr(kid.id)}" aria-label="View ${attr(kid.name)} details and Very Long Term savings">
+      <button class="kid-card-open" type="button" data-open-kid="${attr(kid.id)}" aria-label="View ${attr(display.name)} details and Very Long Term savings">
         <div class="kid-top">
           <div class="kid-identity">
-            <div class="avatar">${escapeHtml(initials(kid.name))}</div>
-            <div><h3 class="kid-name">${escapeHtml(kid.name)}</h3><span>View savings details</span></div>
+            <div class="avatar${display.usesEmojiAvatar ? " emoji-avatar" : ""}">${escapeHtml(display.avatar)}</div>
+            <div><h3 class="kid-name">${escapeHtml(display.name)}</h3><span>View savings details</span></div>
           </div>
           <span class="arrow" aria-hidden="true">→</span>
         </div>
@@ -364,11 +381,12 @@ function renderHome() {
         </div>
       </button>
       <div class="card-actions owner-only">
-        <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}" aria-label="Record spending for ${attr(kid.name)}">− Spend</button>
-        <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}" aria-label="Add weekly pay for ${attr(kid.name)}">＋ Pay</button>
+        <button class="card-action spend" type="button" data-action="quick-spend" data-target-kid="${attr(kid.id)}" aria-label="Record spending for ${attr(display.name)}">− Spend</button>
+        <button class="card-action weekly" type="button" data-action="quick-pay" data-target-kid="${attr(kid.id)}" aria-label="Add weekly pay for ${attr(display.name)}">＋ Pay</button>
       </div>
-      <button class="drag-handle owner-only" type="button" data-reorder-kid="${attr(kid.id)}" aria-label="Reorder ${attr(kid.name)}. Drag, or use arrow keys to move." title="Drag to reorder"><span aria-hidden="true">⠿</span></button>
-    </article>`).join("");
+      <button class="drag-handle owner-only" type="button" data-reorder-kid="${attr(kid.id)}" aria-label="Reorder ${attr(display.name)}. Drag, or use arrow keys to move." title="Drag to reorder"><span aria-hidden="true">⠿</span></button>
+    </article>`;
+  }).join("");
 }
 
 function renderBalanceEditor() {
@@ -378,13 +396,16 @@ function renderBalanceEditor() {
     return;
   }
 
-  balanceEditorList.innerHTML = state.kids.map((kid, index) => `
+  balanceEditorList.innerHTML = state.kids.map((kid, index) => {
+    const display = kidPresentation(kid.name);
+    return `
     <section class="balance-edit-row" data-balance-kid="${attr(kid.id)}" style="--card-accent:${accents[index % accents.length]}">
-      <div class="balance-edit-kid"><div class="avatar">${escapeHtml(initials(kid.name))}</div><strong>${escapeHtml(kid.name)}</strong></div>
+      <div class="balance-edit-kid"><div class="avatar${display.usesEmojiAvatar ? " emoji-avatar" : ""}">${escapeHtml(display.avatar)}</div><strong>${escapeHtml(display.name)}</strong></div>
       <div class="balance-edit-fields">
-        ${categories.map((category) => `<label><span>${escapeHtml(category)}</span><input type="number" step="0.01" inputmode="decimal" value="${balance(kid.id, category).toFixed(2)}" data-balance-category="${attr(category)}" aria-label="${attr(kid.name)} ${attr(category)} balance"${category === "Very Long Term" ? " min=\"0\"" : ""} required></label>`).join("")}
+        ${categories.map((category) => `<label><span>${escapeHtml(category)}</span><input type="number" step="0.01" inputmode="decimal" value="${balance(kid.id, category).toFixed(2)}" data-balance-category="${attr(category)}" aria-label="${attr(display.name)} ${attr(category)} balance"${category === "Very Long Term" ? " min=\"0\"" : ""} required></label>`).join("")}
       </div>
-    </section>`).join("");
+    </section>`;
+  }).join("");
 }
 
 function showBalanceEditor() {
@@ -468,6 +489,7 @@ function finishKidDrag(event, cancelled = false) {
 function renderDetail() {
   const kid = state.kids.find((item) => item.id === selectedKidId);
   if (!kid) return showHome();
+  const display = kidPresentation(kid.name);
   const vltBalance = balance(kid.id, "Very Long Term");
   const transactions = state.transactions
     .filter((transaction) => transaction.kidId === kid.id)
@@ -476,8 +498,8 @@ function renderDetail() {
   document.getElementById("kidDetail").innerHTML = `
     <div class="detail-hero">
       <div class="detail-title-row">
-        <div class="avatar">${escapeHtml(initials(kid.name))}</div>
-        <div><p class="eyebrow">Money dashboard</p><h1 id="detailName">${escapeHtml(kid.name)}</h1></div>
+        <div class="avatar${display.usesEmojiAvatar ? " emoji-avatar" : ""}">${escapeHtml(display.avatar)}</div>
+        <div><p class="eyebrow">Money dashboard</p><h1 id="detailName">${escapeHtml(display.name)}</h1></div>
       </div>
       <div class="detail-actions owner-only">
         <button class="secondary" type="button" data-action="rename">Rename</button>

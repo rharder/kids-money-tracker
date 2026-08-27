@@ -103,6 +103,7 @@ h3 { margin: 0; font-size: 21px; }
 .kid-identity > div:last-child { min-width: 0; }
 .kid-identity span { display: block; margin-top: 1px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .avatar { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; border-radius: 12px; background: var(--card-accent, var(--mint)); color: var(--green-dark); font-family: Manrope, sans-serif; font-size: 16px; font-weight: 800; }
+.avatar.emoji-avatar { font-family: system-ui, sans-serif; font-size: 21px; font-weight: 400; }
 .kid-name { overflow: hidden; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
 .kid-total-label { margin: 5px 0 2px; color: var(--muted); font-size: 13px; }
 .kid-total { font-family: Manrope, sans-serif; font-size: 27px; letter-spacing: -.04em; }
@@ -243,6 +244,7 @@ input, select { width: 100%; padding: 13px 14px; border: 1px solid #d9ded8; bord
   .kid-identity { gap: 6px; }
   .kid-identity span { display: none; }
   .avatar { width: 32px; height: 32px; border-radius: 10px; font-size: 14px; }
+  .avatar.emoji-avatar { font-size: 18px; }
   .kid-name { font-size: 14px; }
   .arrow { display: none; }
   .balances { gap: 4px; margin-top: 0; }
