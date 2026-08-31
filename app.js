@@ -23,6 +23,7 @@ import { familyDocumentPath, firebaseConfig } from "./firebase-config.js";
 import { demoState } from "./demo-data.js";
 
 const STORAGE_KEY = "familyMoneyTracker.v3";
+const ACCESS_CACHE_KEY = "familyMoneyTracker.access.v1";
 const PREVIOUS_KEYS = ["familyMoneyTracker.v2", "familyMoneyTracker.v1"];
 const categories = ["Short Term", "Long Term", "Very Long Term"];
 const activeCategories = ["Short Term", "Long Term"];
@@ -100,6 +101,25 @@ function saveLocalState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function saveCachedAccess(user, mode) {
+  if (!user?.uid || !["owner", "viewer"].includes(mode)) return;
+  localStorage.setItem(ACCESS_CACHE_KEY, JSON.stringify({ uid: user.uid, mode, savedAt: Date.now() }));
+}
+
+function cachedAccessForUser(user) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(ACCESS_CACHE_KEY));
+    if (cached?.uid !== user?.uid || !["owner", "viewer"].includes(cached.mode)) return null;
+    return cached.mode;
+  } catch {
+    return null;
+  }
+}
+
+function isOfflineError(error) {
+  return !navigator.onLine || ["unavailable", "deadline-exceeded", "auth/network-request-failed"].includes(error?.code);
+}
+
 function persist(message) {
   if (DEMO_MODE) {
     state.schemaVersion = 3;
@@ -107,7 +127,7 @@ function persist(message) {
     if (message) showToast(`${message} — demo only`);
     return;
   }
-  if (accessMode === "viewer") return showToast("This account has view-only access");
+  if (["viewer", "offline"].includes(accessMode)) return showToast("Reconnect to make changes");
   saveLocalState();
   render();
   if (message) showToast(message);
@@ -138,7 +158,7 @@ function setSyncState(kind, label) {
   footerStatus.textContent = kind === "synced"
     ? "Synced securely with your family"
     : kind === "offline"
-      ? "Saved on this device; waiting to sync"
+      ? "Showing the latest balances saved on this device"
       : kind === "viewer"
         ? "Viewing your family’s synced balances"
         : kind === "saving"
@@ -149,7 +169,7 @@ function setSyncState(kind, label) {
 function applyAccessMode(mode, message = "") {
   accessMode = mode;
   document.body.dataset.access = mode;
-  const authenticated = ["owner", "viewer"].includes(mode);
+  const authenticated = ["owner", "viewer", "offline"].includes(mode);
   authView.classList.toggle("hidden", authenticated);
   homeView.classList.toggle("hidden", !authenticated);
   detailView.classList.add("hidden");
@@ -157,6 +177,7 @@ function applyAccessMode(mode, message = "") {
   if (message) authMessage.textContent = message;
   if (mode === "owner") setSyncState("synced", "Synced");
   else if (mode === "viewer") setSyncState("viewer", "View only");
+  else if (mode === "offline") setSyncState("offline", "Offline copy");
   else if (mode === "loading") setSyncState("saving", "Connecting…");
   else setSyncState("signed-out", "Sign in");
   accountButton.hidden = !currentUser;
@@ -176,9 +197,11 @@ function watchFamily() {
   unsubscribeFamily = onSnapshot(familyRef, { includeMetadataChanges: true }, (snapshot) => {
     if (!snapshot.exists()) return;
     const data = snapshot.data();
+    const resolvedAccessMode = data.ownerUid === currentUser?.uid ? "owner" : "viewer";
+    saveCachedAccess(currentUser, resolvedAccessMode);
     familySettings = { memberEmails: Array.isArray(data.memberEmails) ? data.memberEmails : [] };
     const cloudState = cloudStateFromDocument(data);
-    if (data.ownerUid === user.uid && cloudState.kids.length === 0 && cloudState.transactions.length === 0 && hasLocalFamilyData()) {
+    if (data.ownerUid === currentUser?.uid && cloudState.kids.length === 0 && cloudState.transactions.length === 0 && hasLocalFamilyData()) {
       cloudReady = true;
       applyAccessMode("owner");
       openFirstCloudSetup();
@@ -187,8 +210,13 @@ function watchFamily() {
     state = cloudState;
     saveLocalState();
     cloudReady = true;
-    render();
-    setSyncState(snapshot.metadata.hasPendingWrites ? "saving" : accessMode === "viewer" ? "viewer" : "synced", snapshot.metadata.hasPendingWrites ? "Saving…" : accessMode === "viewer" ? "View only" : "Synced");
+    if (accessMode === "offline") applyAccessMode(resolvedAccessMode);
+    else {
+      accessMode = resolvedAccessMode;
+      document.body.dataset.access = resolvedAccessMode;
+      render();
+    }
+    setSyncState(snapshot.metadata.hasPendingWrites ? "saving" : resolvedAccessMode === "viewer" ? "viewer" : "synced", snapshot.metadata.hasPendingWrites ? "Saving…" : resolvedAccessMode === "viewer" ? "View only" : "Synced");
   }, (error) => {
     console.error("Family sync failed", error);
     cloudReady = false;
@@ -220,6 +248,7 @@ async function createFamilyCloud() {
     await setDoc(familyRef, payload);
     closeModal();
     cloudReady = true;
+    saveCachedAccess(currentUser, "owner");
     applyAccessMode("owner");
     watchFamily();
     showToast(hasLocalFamilyData() ? "Family data moved to Firebase" : "Family tracker created");
@@ -235,6 +264,12 @@ async function connectSignedInUser(user) {
   accountButton.innerHTML = user.photoURL
     ? `<img src="${attr(user.photoURL)}" alt="">`
     : `<span>${escapeHtml(initials(user.displayName || user.email || "Google"))}</span>`;
+  if (!navigator.onLine && cachedAccessForUser(user)) {
+    cloudReady = false;
+    applyAccessMode("offline");
+    watchFamily();
+    return;
+  }
   applyAccessMode("loading", "Checking your family access…");
   try {
     const snapshot = await getDoc(familyRef);
@@ -250,11 +285,18 @@ async function connectSignedInUser(user) {
     state = cloudStateFromDocument(data);
     saveLocalState();
     cloudReady = true;
-    applyAccessMode(data.ownerUid === user.uid ? "owner" : "viewer");
+    const resolvedAccessMode = data.ownerUid === user.uid ? "owner" : "viewer";
+    saveCachedAccess(user, resolvedAccessMode);
+    applyAccessMode(resolvedAccessMode);
     watchFamily();
   } catch (error) {
     console.error("Access check failed", error);
     cloudReady = false;
+    if (isOfflineError(error) && cachedAccessForUser(user)) {
+      applyAccessMode("offline");
+      watchFamily();
+      return;
+    }
     applyAccessMode("unapproved", "This Google account has not been approved yet. Ask the family owner to add its email address in Family access.");
   }
 }
@@ -283,7 +325,8 @@ async function signOutUser() {
 function openAccount() {
   if (!currentUser) return startGoogleSignIn();
   const ownerControls = accessMode === "owner" ? `<button class="backup-option" type="button" data-action="family-access"><span>👥</span><span><strong>Family access</strong><small>Approve Google accounts for view-only access</small></span></button>` : "";
-  openModal(`${closeButton()}<h2 id="modalTitle">${escapeHtml(currentUser.displayName || "Google account")}</h2><p class="modal-copy">${escapeHtml(currentUser.email || "")} · ${accessMode === "owner" ? "Family owner" : "View only"}</p><div class="backup-options">${ownerControls}<button class="backup-option" type="button" data-action="sign-out"><span>↪</span><span><strong>Sign out</strong><small>Leave this family tracker on this device</small></span></button></div>`);
+  const roleLabel = accessMode === "owner" ? "Family owner" : accessMode === "offline" ? "Offline copy" : "View only";
+  openModal(`${closeButton()}<h2 id="modalTitle">${escapeHtml(currentUser.displayName || "Google account")}</h2><p class="modal-copy">${escapeHtml(currentUser.email || "")} · ${roleLabel}</p><div class="backup-options">${ownerControls}<button class="backup-option" type="button" data-action="sign-out"><span>↪</span><span><strong>Sign out</strong><small>Leave this family tracker on this device</small></span></button></div>`);
 }
 
 function openFamilyAccess() {

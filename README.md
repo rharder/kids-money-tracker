@@ -15,7 +15,7 @@ A private, installable family ledger for teaching kids how to divide and manage 
 - Syncs through Cloud Firestore after Google sign-in
 - Gives the family owner full editing access and approved Google accounts view-only access
 - Exports and restores JSON backups, including backups from the earlier category model
-- Keeps a local cache for resilient loading and works as an installable PWA
+- Keeps the latest synced balances in a read-only offline view and works as an installable PWA
 
 The first approved account becomes the family owner and moves the existing browser data into Firestore. The owner can add or remove view-only Google accounts from **Account → Family access**. Firebase security rules enforce the same access on the server; hiding controls in the interface is not the security boundary.
 
