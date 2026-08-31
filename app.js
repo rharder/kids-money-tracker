@@ -1,24 +1,3 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import {
-  browserLocalPersistence,
-  getAuth,
-  getRedirectResult,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  setPersistence,
-  signInWithPopup,
-  signInWithRedirect,
-  signOut
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-import {
-  doc,
-  getDoc,
-  getFirestore,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
-  updateDoc
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { familyDocumentPath, firebaseConfig } from "./firebase-config.js";
 import { demoState } from "./demo-data.js";
 
@@ -44,13 +23,23 @@ let familySettings = { memberEmails: [] };
 let cloudReady = false;
 let unsubscribeFamily = null;
 let syncChain = Promise.resolve();
-
-const firebaseApp = initializeApp(firebaseConfig);
-const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
-const familyRef = doc(db, familyDocumentPath);
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: "select_account" });
+let firebaseLoadPromise = null;
+let authObserverStarted = false;
+let auth = null;
+let familyRef = null;
+let googleProvider = null;
+let browserLocalPersistence;
+let getRedirectResult;
+let onAuthStateChanged;
+let setPersistence;
+let signInWithPopup;
+let signInWithRedirect;
+let signOut;
+let getDoc;
+let onSnapshot;
+let serverTimestamp;
+let setDoc;
+let updateDoc;
 
 const homeView = document.getElementById("homeView");
 const detailView = document.getElementById("detailView");
@@ -116,8 +105,55 @@ function cachedAccessForUser(user) {
   }
 }
 
+function hasCachedAccess() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(ACCESS_CACHE_KEY));
+    return Boolean(cached?.uid && ["owner", "viewer"].includes(cached.mode));
+  } catch {
+    return false;
+  }
+}
+
+function hasOfflineSnapshot() {
+  return hasCachedAccess() || hasLocalFamilyData();
+}
+
 function isOfflineError(error) {
   return !navigator.onLine || ["unavailable", "deadline-exceeded", "auth/network-request-failed"].includes(error?.code);
+}
+
+async function loadFirebase() {
+  if (auth && familyRef) return;
+  if (firebaseLoadPromise) return firebaseLoadPromise;
+  firebaseLoadPromise = (async () => {
+    const [appModule, authModule, firestoreModule] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js"),
+      import("https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js")
+    ]);
+    ({
+      browserLocalPersistence,
+      getRedirectResult,
+      onAuthStateChanged,
+      setPersistence,
+      signInWithPopup,
+      signInWithRedirect,
+      signOut
+    } = authModule);
+    ({ getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } = firestoreModule);
+    const firebaseApp = appModule.initializeApp(firebaseConfig);
+    auth = authModule.getAuth(firebaseApp);
+    const db = firestoreModule.getFirestore(firebaseApp);
+    familyRef = firestoreModule.doc(db, familyDocumentPath);
+    googleProvider = new authModule.GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: "select_account" });
+  })();
+  try {
+    await firebaseLoadPromise;
+  } catch (error) {
+    firebaseLoadPromise = null;
+    throw error;
+  }
 }
 
 function persist(message) {
@@ -264,7 +300,7 @@ async function connectSignedInUser(user) {
   accountButton.innerHTML = user.photoURL
     ? `<img src="${attr(user.photoURL)}" alt="">`
     : `<span>${escapeHtml(initials(user.displayName || user.email || "Google"))}</span>`;
-  if (!navigator.onLine && cachedAccessForUser(user)) {
+  if (!navigator.onLine && (cachedAccessForUser(user) || hasLocalFamilyData())) {
     cloudReady = false;
     applyAccessMode("offline");
     watchFamily();
@@ -292,7 +328,7 @@ async function connectSignedInUser(user) {
   } catch (error) {
     console.error("Access check failed", error);
     cloudReady = false;
-    if (isOfflineError(error) && cachedAccessForUser(user)) {
+    if (isOfflineError(error) && (cachedAccessForUser(user) || hasLocalFamilyData())) {
       applyAccessMode("offline");
       watchFamily();
       return;
@@ -301,8 +337,38 @@ async function connectSignedInUser(user) {
   }
 }
 
+async function startCloud() {
+  if (authObserverStarted) return;
+  try {
+    await loadFirebase();
+    await setPersistence(auth, browserLocalPersistence).catch(() => {});
+    getRedirectResult(auth).catch((error) => {
+      console.error("Redirect sign-in failed", error);
+      showToast("Google sign-in didn’t finish");
+    });
+    authObserverStarted = true;
+    onAuthStateChanged(auth, (user) => {
+      if (user) return connectSignedInUser(user);
+      currentUser = null;
+      accountButton.hidden = true;
+      cloudReady = false;
+      applyAccessMode("signedOut", "Sign in with Google to open your family’s money tracker.");
+    });
+  } catch (error) {
+    console.error("Firebase startup failed", error);
+    cloudReady = false;
+    if (hasOfflineSnapshot()) {
+      applyAccessMode("offline");
+      return;
+    }
+    applyAccessMode("signedOut", "Connect to the internet once to sign in and save an offline copy.");
+  }
+}
+
 async function startGoogleSignIn() {
   try {
+    if (!auth) await startCloud();
+    if (!auth) return showToast("Connect to the internet to sign in");
     await setPersistence(auth, browserLocalPersistence);
     await signInWithPopup(auth, googleProvider);
   } catch (error) {
@@ -898,18 +964,9 @@ if (DEMO_MODE) {
   syncStatus.querySelector(".sync-label").textContent = "Demo";
   footerStatus.textContent = "Demo edits reset on refresh — your real family tracker is unchanged";
 } else {
-  setPersistence(auth, browserLocalPersistence).catch(() => {});
-  getRedirectResult(auth).catch((error) => {
-    console.error("Redirect sign-in failed", error);
-    showToast("Google sign-in didn’t finish");
-  });
-  onAuthStateChanged(auth, (user) => {
-    if (user) return connectSignedInUser(user);
-    currentUser = null;
-    accountButton.hidden = true;
-    cloudReady = false;
-    applyAccessMode("signedOut", "Sign in with Google to open your family’s money tracker.");
-  });
-  applyAccessMode("loading", "Connecting to your family tracker…");
+  if (hasOfflineSnapshot()) applyAccessMode("offline");
+  else applyAccessMode("loading", "Connecting to your family tracker…");
+  if (navigator.onLine) startCloud();
+  window.addEventListener("online", startCloud);
 }
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
