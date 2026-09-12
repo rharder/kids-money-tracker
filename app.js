@@ -300,13 +300,15 @@ async function connectSignedInUser(user) {
   accountButton.innerHTML = user.photoURL
     ? `<img src="${attr(user.photoURL)}" alt="">`
     : `<span>${escapeHtml(initials(user.displayName || user.email || "Google"))}</span>`;
+  const showingOfflineSnapshot = accessMode === "offline" && hasOfflineSnapshot();
   if (!navigator.onLine && (cachedAccessForUser(user) || hasLocalFamilyData())) {
     cloudReady = false;
-    applyAccessMode("offline");
+    if (!showingOfflineSnapshot) applyAccessMode("offline");
     watchFamily();
     return;
   }
-  applyAccessMode("loading", "Checking your family access…");
+  if (showingOfflineSnapshot) setSyncState("saving", "Refreshing…");
+  else applyAccessMode("loading", "Checking your family access…");
   try {
     const snapshot = await getDoc(familyRef);
     if (!snapshot.exists()) {
