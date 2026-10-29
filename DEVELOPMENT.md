@@ -111,6 +111,8 @@ The app renders the last locally saved ledger immediately. Firebase libraries an
 
 `sw.js` precaches the application shell. When changing a cached application file, increment the `CACHE` value near the top of `sw.js` so installed copies receive the new version. Test at least one online load followed by an offline reopen, especially on iPhone/Safari.
 
+GitHub Pages deployment also stamps the service worker cache with the full Git commit ID, so every pushed change gets a fresh deployed cache automatically. An already open page may need another refresh after the new service worker activates.
+
 ## Validation and deployment
 
 Before committing JavaScript changes:
@@ -129,6 +131,8 @@ https://rharder.github.io/kids-money-tracker/
 
 After deployment, verify the normal app, the `?demo=1` view, Google sign-in, and the cached-first/offline behavior when the change touches those areas.
 
+The footer shows the deployed version as `Version v<workflow run>.<attempt> · <short commit ID>`. It identifies the copy actually loaded on the device, including offline; compare the commit ID with the latest successful Pages deployment. Local development shows `Version dev`. Version stamping happens only in the deployment artifact, not in committed source files.
+
 ## What must never be committed
 
 - Real family-data JSON backups
@@ -138,4 +142,3 @@ After deployment, verify the normal app, the `?demo=1` view, Google sign-in, and
 - Browser profiles, local-storage exports, or Firebase CLI login tokens
 
 The committed Firebase web configuration is intentionally excluded from this list because it is public configuration protected by Authentication and Firestore security rules.
-

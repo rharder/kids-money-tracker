@@ -23,6 +23,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Stamp deployed version and cache
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          revision = os.environ["GITHUB_SHA"]
+          version = f'v{os.environ["GITHUB_RUN_NUMBER"]}.{os.environ["GITHUB_RUN_ATTEMPT"]} · {revision[:7]}'
+          page = Path("index.html")
+          markup = page.read_text()
+          assert markup.count("Version dev") == 1, "Expected one footer version placeholder"
+          page.write_text(markup.replace("Version dev", f"Version {version}"))
+
+          worker = Path("sw.js")
+          source, count = re.subn(r'const CACHE = "[^"]+";', f'const CACHE = "family-money-{revision}";', worker.read_text(), count=1)
+          assert count == 1, "Expected one service worker cache declaration"
+          worker.write_text(source)
+          PY
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
