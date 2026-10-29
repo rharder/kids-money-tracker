@@ -1,0 +1,18 @@
+.DS_Store
+
+# Local development tools and logs
+.vscode/
+.idea/
+firebase-debug.log*
+
+# Private machine/account configuration
+.env
+.env.*
+!.env.example
+*service-account*.json
+*firebase-admin*.json
+
+# Family data exports must stay private and outside source control
+backups/
+family-money-backup-*.json
+

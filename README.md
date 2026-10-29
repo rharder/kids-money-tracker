@@ -2,7 +2,7 @@
 
 A private, installable family ledger for teaching kids how to divide and manage money, backed by Firebase so the family sees the same balances on every device.
 
-[Live App on githup.io](https://rharder.github.io/kids-money-tracker/)
+[Open the live app](https://rharder.github.io/kids-money-tracker/)
 
 ![Family Money Tracker mobile home screen showing four fictional kids, their balances, and quick Spend and Pay buttons](screenshots/homescreen-mobile.png)
 
@@ -28,6 +28,10 @@ The Firebase web configuration in `firebase-config.js` identifies the public Fir
 The repository includes a GitHub Actions workflow that publishes the site whenever `main` is updated.
 
 Google Authentication must list `rharder.github.io` as an authorized domain. Firestore is stored in the `nam5` U.S. multi-region.
+
+## Development and computer transfer
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, architecture, Firebase operations, offline-cache behavior, deployment checks, and the private items that must be transferred outside Git when moving development to another computer.
 
 ## Screenshot demo
 
