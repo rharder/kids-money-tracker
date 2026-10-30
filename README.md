@@ -36,3 +36,7 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for local setup, architecture, Firebase ope
 ## Screenshot demo
 
 Open [`?demo=1`](https://rharder.github.io/kids-money-tracker/?demo=1) for an interactive set of fake kids, balances, and activity. Demo changes reset when the page refreshes and never read, upload, or modify the real family tracker.
+
+## License
+
+Released into the public domain under [The Unlicense](LICENSE). Third-party components remain subject to their respective licenses; private family data is not part of this release.
